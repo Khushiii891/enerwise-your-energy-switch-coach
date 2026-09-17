@@ -224,7 +224,7 @@ export function PageHeading({
   );
 }
 
-function Field({
+export function Field({
   label,
   htmlFor,
   children,
