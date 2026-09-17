@@ -7,9 +7,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { Contract, Usage } from "@/lib/types";
+import type { Contract, Recommendation, Usage } from "@/lib/types";
 import { DEFAULT_CONTRACT, DEFAULT_USAGE } from "@/lib/market-data";
-import { buildRecommendation, type Recommendation } from "@/lib/calc";
+import { buildRecommendation } from "@/lib/calc";
 
 const CONTRACT_KEY = "enerwise:contract";
 const USAGE_KEY = "enerwise:usage";
