@@ -1,4 +1,4 @@
-import { Link } useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
