@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Zap } from "lucide-react";
+import { ArrowRight, Zap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useEnerwise } from "@/store/enerwise";
 import { Button } from "@/components/ui/button";
@@ -12,10 +12,10 @@ import { Card, CardContent } from "@/components/ui/card";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Sign in — Enerwise" },
-      { name: "description", content: "Sign in to Enerwise to save your contract and usage." },
-      { property: "og:title", content: "Sign in — Enerwise" },
-      { property: "og:description", content: "Save your energy contract and get timing-aware switch advice." },
+      { title: "Start — Enerwise" },
+      { name: "description", content: "Start Enerwise as a guest to get timing-aware energy switch advice." },
+      { property: "og:title", content: "Start — Enerwise" },
+      { property: "og:description", content: "Continue as a guest and see if now is the right time to switch energy supplier." },
     ],
   }),
   component: AuthPage,
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/auth")({
 function AuthPage() {
   const { user } = useEnerwise();
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [showAdmin, setShowAdmin] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -33,73 +33,70 @@ function AuthPage() {
     if (user) navigate({ to: "/" });
   }, [user, navigate]);
 
-  async function submit(e: React.FormEvent) {
+  async function continueAsGuest() {
+    setBusy(true);
+    const { error } = await supabase.auth.signInAnonymously();
+    setBusy(false);
+    if (error) toast.error("Couldn't start a guest session. Please try again.");
+  }
+
+  async function adminSignIn(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    try {
-      if (mode === "signin") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-      } else {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { emailRedirectTo: window.location.origin },
-        });
-        if (error) throw error;
-        if (!data.session) toast.success("Check your inbox to confirm your email, then sign in.");
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setBusy(false);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    setBusy(false);
+    if (error) {
+      toast.error(error.message);
+      return;
     }
+    navigate({ to: "/admin" });
   }
 
   return (
-    <div className="mx-auto flex max-w-sm flex-col gap-6 py-6">
+    <div className="mx-auto flex max-w-sm flex-col gap-6 py-10">
       <div className="flex flex-col items-center gap-3 text-center">
-        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+        <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
           <Zap className="h-6 w-6" />
         </span>
-        <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
-          {mode === "signin" ? "Welcome back" : "Create your account"}
-        </h1>
+        <h1 className="text-2xl font-extrabold tracking-tight text-foreground">Welcome to Enerwise</h1>
         <p className="text-sm text-muted-foreground">
-          Your contract and usage are saved privately to your household account.
+          Find out whether now is the right moment to switch energy supplier. Your answers stay in
+          your own private session.
         </p>
       </div>
-      <Card>
-        <CardContent className="p-5">
-          <form onSubmit={submit} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-            <Button type="submit" disabled={busy}>
-              {busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Sign up"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-      <button
-        type="button"
-        className="text-sm text-muted-foreground hover:text-foreground"
-        onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-      >
-        {mode === "signin" ? "No account yet? Sign up" : "Already have an account? Sign in"}
-      </button>
+
+      <Button size="lg" className="h-14 text-base" onClick={continueAsGuest} disabled={busy}>
+        Continue as guest <ArrowRight className="h-5 w-5" />
+      </Button>
+
+      {!showAdmin ? (
+        <button
+          type="button"
+          onClick={() => setShowAdmin(true)}
+          className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+        >
+          Admin login
+        </button>
+      ) : (
+        <Card>
+          <CardContent className="p-5">
+            <form onSubmit={adminSignIn} className="flex flex-col gap-4">
+              <p className="text-sm font-semibold text-foreground">Admin login</p>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="password">Password</Label>
+                <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+              </div>
+              <Button type="submit" variant="outline" disabled={busy}>
+                Sign in
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
