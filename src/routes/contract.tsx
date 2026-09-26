@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useEnerwise } from "@/store/enerwise";
+import { DEFAULT_CONTRACT } from "@/lib/market-data";
 import { SUPPLIERS, type Contract, type TariffType } from "@/lib/types";
 
 export const Route = createFileRoute("/contract")({
