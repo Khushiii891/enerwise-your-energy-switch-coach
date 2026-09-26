@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 interface EnerwiseContextValue {
   user: User | null;
   authReady: boolean;
+  isAdmin: boolean;
   dataReady: boolean;
   contract: Contract;
   usage: Usage;
@@ -38,6 +39,7 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
   const [usage, setUsageState] = useState<Usage>(DEFAULT_USAGE);
   const [offers, setOffers] = useState<MarketOffer[]>(MARKET_OFFERS);
   const [version, setVersion] = useState(0);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
@@ -55,10 +57,13 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!userId) {
       setDataReady(false);
+      setIsAdmin(false);
       return;
     }
     let cancelled = false;
     (async () => {
+      const roles = await supabase.from("user_roles").select("role").eq("user_id", userId);
+      if (!cancelled) setIsAdmin(!!roles.data?.some((r) => r.role === "admin"));
       const [c, u, t] = await Promise.all([
         supabase.from("contracts").select("*").eq("user_id", userId).maybeSingle(),
         supabase.from("usage").select("*").eq("user_id", userId).maybeSingle(),
@@ -155,6 +160,7 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       authReady,
+      isAdmin,
       dataReady,
       contract,
       usage,
@@ -165,7 +171,7 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
       reset,
       recommendation,
     }),
-    [user, authReady, dataReady, contract, usage, offers, version, setContract, setUsage, reset, recommendation],
+    [user, authReady, isAdmin, dataReady, contract, usage, offers, version, setContract, setUsage, reset, recommendation],
   );
 
   return <EnerwiseContext.Provider value={value}>{children}</EnerwiseContext.Provider>;

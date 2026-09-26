@@ -200,6 +200,7 @@ export const generateRationale = createServerFn({ method: "POST" })
       .from("recommendations")
       .insert({
         user_id: userId,
+        current_supplier: contract.supplier,
         best_supplier: rec.best?.offer.supplier ?? null,
         net_savings: rec.best ? r2(rec.best.netSavings) : null,
         decision,
