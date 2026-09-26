@@ -7,9 +7,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { generateRationale, submitFeedback, type RationaleResult } from "@/lib/rationale.functions";
 import { useEnerwise } from "@/store/enerwise";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 export function AiRationale({ positive }: { positive: boolean }) {
-  const { version } = useEnerwise();
+  const { version, user } = useEnerwise();
+  const userId = user?.id;
   const gen = useServerFn(generateRationale);
   const sendFeedback = useServerFn(submitFeedback);
   const [lang, setLang] = useState<"en" | "nl">("en");
@@ -20,6 +22,9 @@ export function AiRationale({ positive }: { positive: boolean }) {
 
   const run = useCallback(
     async (force: boolean) => {
+      if (!userId) return;
+      const { data: sess } = await supabase.auth.getSession();
+      if (!sess.session) return;
       const id = ++reqId.current;
       setLoading(true);
       setVoted(null);
@@ -32,7 +37,7 @@ export function AiRationale({ positive }: { positive: boolean }) {
         if (id === reqId.current) setLoading(false);
       }
     },
-    [gen, lang],
+    [gen, lang, userId],
   );
 
   useEffect(() => {
@@ -42,6 +47,8 @@ export function AiRationale({ positive }: { positive: boolean }) {
   async function vote(helpful: boolean) {
     if (!result?.id) return;
     setVoted(helpful);
+    const { data: sess } = await supabase.auth.getSession();
+    if (!sess.session) return;
     try {
       await sendFeedback({ data: { recommendationId: result.id, helpful } });
       toast.success("Thanks for your feedback");

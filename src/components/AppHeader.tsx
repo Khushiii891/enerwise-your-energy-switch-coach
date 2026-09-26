@@ -1,4 +1,4 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { LogOut, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,6 +13,7 @@ const NAV = [
 export function AppHeader() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { user } = useEnerwise();
+  const navigate = useNavigate();
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-md">
@@ -54,7 +55,10 @@ export function AppHeader() {
             <button
               type="button"
               aria-label="Sign out"
-              onClick={() => supabase.auth.signOut()}
+              onClick={async () => {
+                await supabase.auth.signOut();
+                navigate({ to: "/auth", replace: true });
+              }}
               className="ml-1 rounded-full p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             >
               <LogOut className="h-4 w-4" />
