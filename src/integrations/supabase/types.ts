@@ -14,7 +14,167 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      contracts: {
+        Row: {
+          contract_end_date: string | null
+          exit_fee: number
+          exit_fee_condition: string
+          price_per_gas: number
+          price_per_kwh: number
+          supplier: string
+          tariff_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          contract_end_date?: string | null
+          exit_fee?: number
+          exit_fee_condition?: string
+          price_per_gas: number
+          price_per_kwh: number
+          supplier: string
+          tariff_type?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          contract_end_date?: string | null
+          exit_fee?: number
+          exit_fee_condition?: string
+          price_per_gas?: number
+          price_per_kwh?: number
+          supplier?: string
+          tariff_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      feedback: {
+        Row: {
+          comment: string | null
+          created_at: string
+          helpful: boolean
+          id: string
+          recommendation_id: string
+          user_id: string
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          helpful: boolean
+          id?: string
+          recommendation_id: string
+          user_id: string
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          helpful?: boolean
+          id?: string
+          recommendation_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_recommendation_id_fkey"
+            columns: ["recommendation_id"]
+            isOneToOne: false
+            referencedRelation: "recommendations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recommendations: {
+        Row: {
+          best_supplier: string | null
+          created_at: string
+          decision: string
+          id: string
+          input_hash: string | null
+          lang: string
+          model: string
+          net_savings: number | null
+          prompt_version: string
+          rationale_text: Json
+          user_id: string
+        }
+        Insert: {
+          best_supplier?: string | null
+          created_at?: string
+          decision: string
+          id?: string
+          input_hash?: string | null
+          lang?: string
+          model: string
+          net_savings?: number | null
+          prompt_version: string
+          rationale_text: Json
+          user_id: string
+        }
+        Update: {
+          best_supplier?: string | null
+          created_at?: string
+          decision?: string
+          id?: string
+          input_hash?: string | null
+          lang?: string
+          model?: string
+          net_savings?: number | null
+          prompt_version?: string
+          rationale_text?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
+      tariffs: {
+        Row: {
+          contract_length: number
+          gas_price: number
+          id: string
+          kwh_price: number
+          promo: number
+          supplier: string
+        }
+        Insert: {
+          contract_length: number
+          gas_price: number
+          id?: string
+          kwh_price: number
+          promo?: number
+          supplier: string
+        }
+        Update: {
+          contract_length?: number
+          gas_price?: number
+          id?: string
+          kwh_price?: number
+          promo?: number
+          supplier?: string
+        }
+        Relationships: []
+      }
+      usage: {
+        Row: {
+          monthly_electricity: number
+          monthly_gas: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          monthly_electricity: number
+          monthly_gas: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          monthly_electricity?: number
+          monthly_gas?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
