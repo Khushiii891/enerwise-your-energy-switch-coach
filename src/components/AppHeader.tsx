@@ -1,6 +1,8 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Zap } from "lucide-react";
+import { LogOut, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { useEnerwise } from "@/store/enerwise";
 
 const NAV = [
   { to: "/", short: "Home", full: "Recommendation" },
@@ -10,6 +12,7 @@ const NAV = [
 
 export function AppHeader() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { user } = useEnerwise();
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-md">
@@ -28,26 +31,36 @@ export function AppHeader() {
           </span>
         </Link>
 
-        <nav className="flex items-center gap-0.5 sm:gap-1">
-          {NAV.map((item) => {
-            const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={cn(
-                  "rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors sm:px-4 sm:text-sm",
-                  active
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                )}
-              >
-                <span className="sm:hidden">{item.short}</span>
-                <span className="hidden sm:inline">{item.full}</span>
-              </Link>
-            );
-          })}
-        </nav>
+        {user && (
+          <nav className="flex items-center gap-0.5 sm:gap-1">
+            {NAV.map((item) => {
+              const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={cn(
+                    "rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors sm:px-4 sm:text-sm",
+                    active
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                  )}
+                >
+                  <span className="sm:hidden">{item.short}</span>
+                  <span className="hidden sm:inline">{item.full}</span>
+                </Link>
+              );
+            })}
+            <button
+              type="button"
+              aria-label="Sign out"
+              onClick={() => supabase.auth.signOut()}
+              className="ml-1 rounded-full p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </nav>
+        )}
       </div>
     </header>
   );
