@@ -4,6 +4,8 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
+  useNavigate,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -12,7 +14,7 @@ import { Toaster } from "@/components/ui/sonner";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { EnerwiseProvider } from "@/store/enerwise";
+import { EnerwiseProvider, useEnerwise } from "@/store/enerwise";
 import { AppHeader } from "@/components/AppHeader";
 
 function NotFoundComponent() {
@@ -140,7 +142,9 @@ function RootComponent() {
         <div className="bg-canvas flex min-h-screen flex-col">
           <AppHeader />
           <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
-            <Outlet />
+            <AuthGate>
+              <Outlet />
+            </AuthGate>
           </main>
           <SiteFooter />
         </div>
@@ -148,6 +152,23 @@ function RootComponent() {
       </EnerwiseProvider>
     </QueryClientProvider>
   );
+}
+
+function AuthGate({ children }: { children: ReactNode }) {
+  const { user, authReady, dataReady } = useEnerwise();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
+  const isAuthPage = pathname === "/auth";
+
+  useEffect(() => {
+    if (authReady && !user && !isAuthPage) navigate({ to: "/auth" });
+  }, [authReady, user, isAuthPage, navigate]);
+
+  if (isAuthPage) return <>{children}</>;
+  if (!authReady || !user || !dataReady) {
+    return <div className="py-20 text-center text-sm text-muted-foreground">Loading…</div>;
+  }
+  return <>{children}</>;
 }
 
 function SiteFooter() {

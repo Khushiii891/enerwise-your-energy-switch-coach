@@ -44,13 +44,17 @@ function UsagePage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setUsage(form);
-    toast.success("Usage saved", {
-      description: "Your recommendation now uses these figures.",
-    });
-    navigate({ to: "/" });
+    try {
+      await setUsage(form);
+      toast.success("Usage saved", {
+        description: "Your recommendation now uses these figures.",
+      });
+      navigate({ to: "/" });
+    } catch {
+      toast.error("Could not save your usage. Please try again.");
+    }
   }
 
   const annualElec = form.monthlyElectricity * 12;

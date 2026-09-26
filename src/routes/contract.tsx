@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useEnerwise } from "@/store/enerwise";
+import { DEFAULT_CONTRACT } from "@/lib/market-data";
 import { SUPPLIERS, type Contract, type TariffType } from "@/lib/types";
 
 export const Route = createFileRoute("/contract")({
@@ -57,19 +58,27 @@ function ContractPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setContract(form);
-    toast.success("Contract saved", {
-      description: "We've updated your recommendation.",
-    });
-    navigate({ to: "/" });
+    try {
+      await setContract(form);
+      toast.success("Contract saved", {
+        description: "We've updated your recommendation.",
+      });
+      navigate({ to: "/" });
+    } catch {
+      toast.error("Could not save your contract. Please try again.");
+    }
   }
 
-  function handleReset() {
-    reset();
-    setForm(contract);
-    toast("Reset to default contract");
+  async function handleReset() {
+    setForm(DEFAULT_CONTRACT);
+    try {
+      await reset();
+      toast("Reset to default contract");
+    } catch {
+      toast.error("Could not reset. Please try again.");
+    }
   }
 
   return (

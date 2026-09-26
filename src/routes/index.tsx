@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { useEnerwise } from "@/store/enerwise";
 import { formatEuro, SWITCH_THRESHOLD } from "@/lib/calc";
 import { cn } from "@/lib/utils";
+import { AiRationale } from "@/components/AiRationale";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -95,22 +96,7 @@ function RecommendationHero() {
           )}
         />
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="max-w-xl">
-            <div className="mb-3 flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              <span className="text-xs font-semibold uppercase tracking-wider text-primary">
-                My Recommendation
-              </span>
-            </div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">
-              {positive
-                ? "Now looks like a good time to switch"
-                : "Your current contract still wins — for now"}
-            </h1>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              {recommendation.summary}
-            </p>
-          </div>
+          <AiRationale positive={positive} />
 
           <div className="shrink-0 rounded-2xl border border-border bg-background/60 p-4 text-center">
             <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
