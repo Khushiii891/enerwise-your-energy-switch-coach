@@ -1,5 +1,6 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { LogOut, Zap } from "lucide-react";
+import { LogOut, RotateCcw, Zap } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useEnerwise } from "@/store/enerwise";
@@ -12,7 +13,7 @@ const NAV = [
 
 export function AppHeader() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { user } = useEnerwise();
+  const { user, isAdmin } = useEnerwise();
   const navigate = useNavigate();
 
   return (
@@ -52,17 +53,53 @@ export function AppHeader() {
                 </Link>
               );
             })}
-            <button
-              type="button"
-              aria-label="Sign out"
-              onClick={async () => {
-                await supabase.auth.signOut();
-                navigate({ to: "/auth", replace: true });
-              }}
-              className="ml-1 rounded-full p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
+            {isAdmin && (
+              <Link
+                to="/admin"
+                className={cn(
+                  "rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors sm:px-4 sm:text-sm",
+                  pathname.startsWith("/admin")
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                )}
+              >
+                Admin
+              </Link>
+            )}
+            {user.is_anonymous ? (
+              <button
+                type="button"
+                aria-label="Start over"
+                title="Start over with a fresh guest session"
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  const { error } = await supabase.auth.signInAnonymously();
+                  if (error) {
+                    toast.error("Couldn't start a new guest session.");
+                    navigate({ to: "/auth", replace: true });
+                    return;
+                  }
+                  toast.success("Fresh session started");
+                  navigate({ to: "/", replace: true });
+                }}
+                className="ml-1 flex items-center gap-1 rounded-full px-2 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              >
+                <RotateCcw className="h-4 w-4" />
+                <span className="hidden sm:inline">Start over</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                aria-label="Sign out"
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  navigate({ to: "/auth", replace: true });
+                }}
+                className="ml-1 rounded-full p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            )}
           </nav>
         )}
       </div>
