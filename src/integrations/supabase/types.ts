@@ -19,6 +19,8 @@ export type Database = {
           contract_end_date: string | null
           exit_fee: number
           exit_fee_condition: string
+          feed_in_compensation_per_kwh: number
+          feed_in_cost_per_kwh: number
           price_per_gas: number
           price_per_kwh: number
           supplier: string
@@ -30,6 +32,8 @@ export type Database = {
           contract_end_date?: string | null
           exit_fee?: number
           exit_fee_condition?: string
+          feed_in_compensation_per_kwh?: number
+          feed_in_cost_per_kwh?: number
           price_per_gas: number
           price_per_kwh: number
           supplier: string
@@ -41,6 +45,8 @@ export type Database = {
           contract_end_date?: string | null
           exit_fee?: number
           exit_fee_condition?: string
+          feed_in_compensation_per_kwh?: number
+          feed_in_cost_per_kwh?: number
           price_per_gas?: number
           price_per_kwh?: number
           supplier?: string
@@ -133,6 +139,8 @@ export type Database = {
       tariffs: {
         Row: {
           contract_length: number
+          feed_in_compensation_per_kwh: number
+          feed_in_cost_per_kwh: number
           gas_price: number
           id: string
           kwh_price: number
@@ -141,6 +149,8 @@ export type Database = {
         }
         Insert: {
           contract_length: number
+          feed_in_compensation_per_kwh?: number
+          feed_in_cost_per_kwh?: number
           gas_price: number
           id?: string
           kwh_price: number
@@ -149,6 +159,8 @@ export type Database = {
         }
         Update: {
           contract_length?: number
+          feed_in_compensation_per_kwh?: number
+          feed_in_cost_per_kwh?: number
           gas_price?: number
           id?: string
           kwh_price?: number
@@ -159,18 +171,27 @@ export type Database = {
       }
       usage: {
         Row: {
+          annual_feed_in: number
+          annual_grid_import: number
+          has_solar: boolean
           monthly_electricity: number
           monthly_gas: number
           updated_at: string
           user_id: string
         }
         Insert: {
+          annual_feed_in?: number
+          annual_grid_import?: number
+          has_solar?: boolean
           monthly_electricity: number
           monthly_gas: number
           updated_at?: string
           user_id: string
         }
         Update: {
+          annual_feed_in?: number
+          annual_grid_import?: number
+          has_solar?: boolean
           monthly_electricity?: number
           monthly_gas?: number
           updated_at?: string
