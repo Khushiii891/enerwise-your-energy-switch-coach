@@ -191,6 +191,31 @@ function ContractPage() {
                 </Select>
               </Field>
             </div>
+
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <Field label="Feed-in costs per kWh (€) — solar only" htmlFor="feedInCost">
+                <Input
+                  id="feedInCost"
+                  type="number"
+                  step="0.001"
+                  min="0"
+                  inputMode="decimal"
+                  value={form.feedInCost}
+                  onChange={(e) => update("feedInCost", parseFloat(e.target.value) || 0)}
+                />
+              </Field>
+              <Field label="Feed-in compensation per kWh (€)" htmlFor="feedInComp">
+                <Input
+                  id="feedInComp"
+                  type="number"
+                  step="0.001"
+                  min="0"
+                  inputMode="decimal"
+                  value={form.feedInCompensation}
+                  onChange={(e) => update("feedInCompensation", parseFloat(e.target.value) || 0)}
+                />
+              </Field>
+            </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-3 sm:flex-row sm:justify-between">
             <Button type="button" variant="ghost" size="sm" onClick={handleReset}>

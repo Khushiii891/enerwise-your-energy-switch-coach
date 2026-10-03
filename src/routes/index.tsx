@@ -135,10 +135,15 @@ function ContractSummary({
     },
     { label: "Electricity", value: `€ ${contract.pricePerKwh.toFixed(3)}/kWh` },
     { label: "Gas", value: `€ ${contract.pricePerGas.toFixed(2)}/m³` },
-    {
-      label: "Use / month",
-      value: `${usage.monthlyElectricity} kWh · ${usage.monthlyGas} m³`,
-    },
+    usage.hasSolar
+      ? {
+          label: "Solar / year",
+          value: `${usage.annualGridImport} in · ${usage.annualFeedIn} out kWh`,
+        }
+      : {
+          label: "Use / month",
+          value: `${usage.monthlyElectricity} kWh · ${usage.monthlyGas} m³`,
+        },
   ];
 
   return (
@@ -278,6 +283,12 @@ function SupplierCard({
         <div className="space-y-1.5 text-xs text-muted-foreground">
           <Row label="Electricity" value={`€ ${offer.kwhPrice.toFixed(3)}/kWh`} />
           <Row label="Gas" value={`€ ${offer.gasPrice.toFixed(2)}/m³`} />
+          <Row
+            label="Feed-in costs"
+            value={offer.feedInCost === 0 ? "None" : `€ ${offer.feedInCost.toFixed(3)}/kWh`}
+            tone={offer.feedInCost === 0 ? "pos" : "muted"}
+          />
+          <Row label="Feed-in compensation" value={`€ ${offer.feedInCompensation.toFixed(3)}/kWh`} />
           <Row label="Est. annual cost" value={formatEuro(annualCostCandidate)} />
           <Row
             label="Gross saving"
