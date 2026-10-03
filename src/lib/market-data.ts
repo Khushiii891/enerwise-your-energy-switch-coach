@@ -9,59 +9,31 @@ export const DEFAULT_CONTRACT: Contract = {
   contractEndDate: "2027-01-31",
   exitFee: 50,
   exitFeeCondition: "only if switching before end date",
+  feedInCost: 0.1,
+  feedInCompensation: 0.06,
 };
 
 /** Default "My Usage". */
 export const DEFAULT_USAGE: Usage = {
   monthlyElectricity: 250,
   monthlyGas: 120,
+  hasSolar: false,
+  annualGridImport: 0,
+  annualFeedIn: 0,
 };
+
+/** kWh fed back per panel per year, used by the "estimate from panels" helper. */
+export const DEFAULT_KWH_PER_PANEL = 300;
 
 /**
  * Six mock supplier tariff records. Prices vary slightly so some are cheaper
  * than the typical current contract and some are not.
  */
 export const MARKET_OFFERS: MarketOffer[] = [
-  {
-    supplier: "Budget Energie",
-    kwhPrice: 0.275,
-    gasPrice: 1.3,
-    contractLength: 12,
-    promo: 0,
-  },
-  {
-    supplier: "Oxxio",
-    kwhPrice: 0.288,
-    gasPrice: 1.35,
-    contractLength: 12,
-    promo: 2.5,
-  },
-  {
-    supplier: "ANWB Energie",
-    kwhPrice: 0.299,
-    gasPrice: 1.41,
-    contractLength: 6,
-    promo: 1.5,
-  },
-  {
-    supplier: "Vattenfall",
-    kwhPrice: 0.295,
-    gasPrice: 1.38,
-    contractLength: 12,
-    promo: 3,
-  },
-  {
-    supplier: "Eneco",
-    kwhPrice: 0.305,
-    gasPrice: 1.42,
-    contractLength: 24,
-    promo: 0,
-  },
-  {
-    supplier: "Greenchoice",
-    kwhPrice: 0.31,
-    gasPrice: 1.5,
-    contractLength: 12,
-    promo: 5,
-  },
+  { supplier: "Budget Energie", kwhPrice: 0.275, gasPrice: 1.3, contractLength: 12, promo: 0, feedInCost: 0, feedInCompensation: 0.05 },
+  { supplier: "Oxxio", kwhPrice: 0.288, gasPrice: 1.35, contractLength: 12, promo: 2.5, feedInCost: 0.12, feedInCompensation: 0.07 },
+  { supplier: "ANWB Energie", kwhPrice: 0.299, gasPrice: 1.41, contractLength: 6, promo: 1.5, feedInCost: 0.09, feedInCompensation: 0.08 },
+  { supplier: "Vattenfall", kwhPrice: 0.295, gasPrice: 1.38, contractLength: 12, promo: 3, feedInCost: 0.14, feedInCompensation: 0.06 },
+  { supplier: "Eneco", kwhPrice: 0.305, gasPrice: 1.42, contractLength: 24, promo: 0, feedInCost: 0.11, feedInCompensation: 0.09 },
+  { supplier: "Greenchoice", kwhPrice: 0.31, gasPrice: 1.5, contractLength: 12, promo: 5, feedInCost: 0, feedInCompensation: 0.04 },
 ];

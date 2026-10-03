@@ -3,9 +3,10 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { buildRecommendation } from "./calc";
 import { DEFAULT_CONTRACT, DEFAULT_USAGE, MARKET_OFFERS } from "./market-data";
+import { contractFromRow, offerFromRow, usageFromRow } from "./db-mappers";
 import type { Contract, MarketOffer, Usage } from "./types";
 
-export const PROMPT_VERSION = "v1";
+export const PROMPT_VERSION = "v2";
 export const MODEL = "anthropic/claude-haiku-4-5";
 
 const SYSTEM_PROMPT = `You are Enerwise, a calm, neutral advisor for Dutch households deciding
@@ -20,6 +21,9 @@ You receive pre-calculated data. Rules:
 - If decision is "wait", say what would change the answer (e.g. "after
   your contract ends on [date], the exit fee disappears").
 - For dynamic tariffs, mention price-volatility risk in one short clause.
+- If the household has solar panels, mention that net metering ends on
+  1 January 2027 and explain how feed-in costs and compensation affect
+  the recommendation, using only the numbers provided.
 - Never favor a supplier beyond what the numbers show. No hype, no urgency
   tactics. The user always decides and switches themselves.
 - Reply in the language given in "lang" (default English; "nl" = Dutch).
@@ -107,39 +111,28 @@ export const generateRationale = createServerFn({ method: "POST" })
       supabase.from("usage").select("*").eq("user_id", userId).maybeSingle(),
       supabase.from("tariffs").select("*"),
     ]);
-    const contract: Contract = c.data
-      ? {
-          supplier: c.data.supplier as Contract["supplier"],
-          tariffType: c.data.tariff_type as Contract["tariffType"],
-          pricePerKwh: Number(c.data.price_per_kwh),
-          pricePerGas: Number(c.data.price_per_gas),
-          contractEndDate: c.data.contract_end_date ?? "",
-          exitFee: Number(c.data.exit_fee),
-          exitFeeCondition: c.data.exit_fee_condition,
-        }
-      : DEFAULT_CONTRACT;
-    const usage: Usage = u.data
-      ? { monthlyElectricity: Number(u.data.monthly_electricity), monthlyGas: Number(u.data.monthly_gas) }
-      : DEFAULT_USAGE;
-    const offers: MarketOffer[] = t.data?.length
-      ? t.data.map((r) => ({
-          supplier: r.supplier,
-          kwhPrice: Number(r.kwh_price),
-          gasPrice: Number(r.gas_price),
-          contractLength: r.contract_length,
-          promo: Number(r.promo),
-        }))
-      : MARKET_OFFERS;
+    const contract: Contract = c.data ? contractFromRow(c.data) : DEFAULT_CONTRACT;
+    const usage: Usage = u.data ? usageFromRow(u.data) : DEFAULT_USAGE;
+    const offers: MarketOffer[] = t.data?.length ? t.data.map(offerFromRow) : MARKET_OFFERS;
 
     const rec = buildRecommendation(contract, usage, offers);
     const decision = rec.shouldSwitch ? "switch_now" : "wait";
     const end = contract.contractEndDate ? new Date(contract.contractEndDate) : null;
     const daysUntilEnd = end ? Math.max(0, Math.ceil((end.getTime() - Date.now()) / 86400000)) : null;
+    const solar = usage.hasSolar;
 
     const payload = {
       lang: data.lang,
       decision,
       switch_threshold_eur: rec.threshold,
+      has_solar: solar,
+      ...(solar
+        ? {
+            annual_grid_import_kwh: usage.annualGridImport,
+            annual_feed_in_kwh: usage.annualFeedIn,
+            net_metering_end_date: "2027-01-01",
+          }
+        : {}),
       current_contract: {
         supplier: contract.supplier,
         tariff_type: contract.tariffType,
@@ -148,8 +141,16 @@ export const generateRationale = createServerFn({ method: "POST" })
         contract_end_date: contract.contractEndDate || null,
         exit_fee_eur: contract.exitFee,
         exit_fee_condition: contract.exitFeeCondition,
+        ...(solar
+          ? {
+              feed_in_cost_per_kwh_eur: contract.feedInCost,
+              feed_in_compensation_per_kwh_eur: contract.feedInCompensation,
+            }
+          : {}),
       },
-      usage: { monthly_kwh: usage.monthlyElectricity, monthly_m3_gas: usage.monthlyGas },
+      usage: solar
+        ? { monthly_m3_gas: usage.monthlyGas }
+        : { monthly_kwh: usage.monthlyElectricity, monthly_m3_gas: usage.monthlyGas },
       days_until_contract_end: daysUntilEnd,
       exit_fee_applies_now: rec.exitFeeApplies,
       current_annual_cost_eur: r2(rec.results[0]?.annualCostCurrent ?? 0),
@@ -157,6 +158,8 @@ export const generateRationale = createServerFn({ method: "POST" })
         supplier: r.offer.supplier,
         price_per_kwh_eur: r.offer.kwhPrice,
         price_per_m3_gas_eur: r.offer.gasPrice,
+        feed_in_cost_per_kwh_eur: r.offer.feedInCost,
+        feed_in_compensation_per_kwh_eur: r.offer.feedInCompensation,
         annual_cost_eur: r2(r.annualCostCandidate),
         net_savings_eur: r2(r.netSavings),
       })),

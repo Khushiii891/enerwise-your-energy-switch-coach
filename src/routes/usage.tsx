@@ -15,6 +15,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useEnerwise } from "@/store/enerwise";
 import type { Usage } from "@/lib/types";
+import { Switch } from "@/components/ui/switch";
+import { DEFAULT_KWH_PER_PANEL } from "@/lib/market-data";
 import { PageHeading, Field } from "./contract";
 
 export const Route = createFileRoute("/usage")({
@@ -77,17 +79,37 @@ function UsagePage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-5">
-            <Field label="Electricity usage (kWh / month)" htmlFor="elec">
-              <Input
-                id="elec"
-                type="number"
-                step="1"
-                min="0"
-                inputMode="numeric"
-                value={form.monthlyElectricity}
-                onChange={(e) => update("monthlyElectricity", parseFloat(e.target.value) || 0)}
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 p-3">
+              <div>
+                <Label htmlFor="solar" className="text-sm font-semibold">
+                  I have solar panels
+                </Label>
+                <p className="text-[11px] text-muted-foreground">
+                  Uses the rules after net metering ends on 1 January 2027.
+                </p>
+              </div>
+              <Switch
+                id="solar"
+                checked={form.hasSolar}
+                onCheckedChange={(v) => update("hasSolar", v)}
               />
-            </Field>
+            </div>
+
+            {form.hasSolar ? (
+              <SolarFields form={form} update={update} />
+            ) : (
+              <Field label="Electricity usage (kWh / month)" htmlFor="elec">
+                <Input
+                  id="elec"
+                  type="number"
+                  step="1"
+                  min="0"
+                  inputMode="numeric"
+                  value={form.monthlyElectricity}
+                  onChange={(e) => update("monthlyElectricity", parseFloat(e.target.value) || 0)}
+                />
+              </Field>
+            )}
 
             <Field label="Gas usage (m³ / month)" htmlFor="gas">
               <Input
@@ -102,7 +124,14 @@ function UsagePage() {
             </Field>
 
             <div className="grid grid-cols-2 gap-3 rounded-lg border border-border/70 bg-muted/40 p-4">
-              <Estimate label="Electricity / year" value={`${annualElec.toLocaleString("nl-NL")} kWh`} />
+              {form.hasSolar ? (
+                <Estimate
+                  label="Net from grid / year"
+                  value={`${(form.annualGridImport - form.annualFeedIn).toLocaleString("nl-NL")} kWh`}
+                />
+              ) : (
+                <Estimate label="Electricity / year" value={`${annualElec.toLocaleString("nl-NL")} kWh`} />
+              )}
               <Estimate label="Gas / year" value={`${annualGas.toLocaleString("nl-NL")} m³`} />
             </div>
           </CardContent>
@@ -116,6 +145,94 @@ function UsagePage() {
           </CardFooter>
         </Card>
       </form>
+    </div>
+  );
+}
+
+function SolarFields({
+  form,
+  update,
+}: {
+  form: Usage;
+  update: <K extends keyof Usage>(key: K, value: Usage[K]) => void;
+}) {
+  const [showHelper, setShowHelper] = useState(false);
+  const [panels, setPanels] = useState(10);
+  const [perPanel, setPerPanel] = useState(DEFAULT_KWH_PER_PANEL);
+  const estimate = Math.round(panels * perPanel);
+
+  return (
+    <div className="flex flex-col gap-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
+      <p className="text-xs text-muted-foreground">
+        Both numbers are on your annual energy bill (<em>jaarafrekening</em>).
+      </p>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Field label="Annual grid import (kWh)" htmlFor="gridImport">
+          <Input
+            id="gridImport"
+            type="number"
+            step="1"
+            min="0"
+            inputMode="numeric"
+            value={form.annualGridImport}
+            onChange={(e) => update("annualGridImport", parseFloat(e.target.value) || 0)}
+          />
+        </Field>
+        <Field label="Annual feed-in to the grid (kWh)" htmlFor="feedIn">
+          <Input
+            id="feedIn"
+            type="number"
+            step="1"
+            min="0"
+            inputMode="numeric"
+            value={form.annualFeedIn}
+            onChange={(e) => update("annualFeedIn", parseFloat(e.target.value) || 0)}
+          />
+        </Field>
+      </div>
+
+      {showHelper ? (
+        <div className="flex flex-col gap-3 rounded-md border border-border/70 bg-background p-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Number of panels" htmlFor="panels">
+              <Input
+                id="panels"
+                type="number"
+                min="0"
+                step="1"
+                value={panels}
+                onChange={(e) => setPanels(parseFloat(e.target.value) || 0)}
+              />
+            </Field>
+            <Field label="Feed-in per panel (kWh / yr)" htmlFor="perPanel">
+              <Input
+                id="perPanel"
+                type="number"
+                min="0"
+                step="10"
+                value={perPanel}
+                onChange={(e) => setPerPanel(parseFloat(e.target.value) || 0)}
+              />
+            </Field>
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="tabular text-sm text-muted-foreground">
+              ≈ {estimate.toLocaleString("nl-NL")} kWh feed-in / year
+            </span>
+            <Button type="button" size="sm" variant="secondary" onClick={() => update("annualFeedIn", estimate)}>
+              Use estimate
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowHelper(true)}
+          className="self-start text-xs font-medium text-primary underline-offset-2 hover:underline"
+        >
+          Don't know? Estimate feed-in from number of panels
+        </button>
+      )}
     </div>
   );
 }

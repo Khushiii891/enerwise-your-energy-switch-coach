@@ -20,14 +20,36 @@ export function formatEuro(value: number): string {
   return eur.format(Number.isFinite(value) ? value : 0);
 }
 
+/**
+ * Annual electricity cost.
+ * Solar households use post-2027 rules (net metering ends 1 Jan 2027):
+ *   grid_import * kwh_price + feed_in * (feed_in_cost - feed_in_compensation)
+ */
+export function annualElectricityCost(
+  kwhPrice: number,
+  usage: Usage,
+  feedInCost = 0,
+  feedInCompensation = 0,
+): number {
+  if (usage.hasSolar) {
+    return (
+      usage.annualGridImport * kwhPrice +
+      usage.annualFeedIn * (feedInCost - feedInCompensation)
+    );
+  }
+  return usage.monthlyElectricity * 12 * kwhPrice;
+}
+
 /** Annual energy cost for a price + usage combination, minus any promo. */
 export function annualCost(
   kwhPrice: number,
   gasPrice: number,
   usage: Usage,
   monthlyPromo = 0,
+  feedInCost = 0,
+  feedInCompensation = 0,
 ): number {
-  const electricity = usage.monthlyElectricity * 12 * kwhPrice;
+  const electricity = annualElectricityCost(kwhPrice, usage, feedInCost, feedInCompensation);
   const gas = usage.monthlyGas * 12 * gasPrice;
   return electricity + gas - monthlyPromo * 12;
 }
@@ -61,6 +83,9 @@ export function buildRecommendation(
     contract.pricePerKwh,
     contract.pricePerGas,
     usage,
+    0,
+    contract.feedInCost,
+    contract.feedInCompensation,
   );
 
   const exitFeeApplies = isWithinContract(contract.contractEndDate, now);
@@ -72,6 +97,8 @@ export function buildRecommendation(
         offer.gasPrice,
         usage,
         offer.promo,
+        offer.feedInCost,
+        offer.feedInCompensation,
       );
       const grossSavings = currentAnnual - candidateAnnual;
       const exitFee = exitFeeApplies ? contract.exitFee : 0;
