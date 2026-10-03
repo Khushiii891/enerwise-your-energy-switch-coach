@@ -18,11 +18,16 @@ export interface Contract {
   contractEndDate: string; // ISO date (yyyy-mm-dd), "" = no fixed end
   exitFee: number; // €
   exitFeeCondition: string;
+  feedInCost: number; // €/kWh charged for feeding in
+  feedInCompensation: number; // €/kWh paid back for feeding in
 }
 
 export interface Usage {
   monthlyElectricity: number; // kWh / month
   monthlyGas: number; // m3 / month
+  hasSolar: boolean;
+  annualGridImport: number; // kWh / year (solar only)
+  annualFeedIn: number; // kWh / year (solar only)
 }
 
 /** A live market offer from a supplier (mock data). */
@@ -32,6 +37,8 @@ export interface MarketOffer {
   gasPrice: number; // €/m3
   contractLength: number; // months
   promo: number; // monthly discount in €
+  feedInCost: number; // €/kWh
+  feedInCompensation: number; // €/kWh
 }
 
 export interface SavingsResult {

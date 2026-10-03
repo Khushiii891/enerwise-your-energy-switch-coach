@@ -12,6 +12,7 @@ import type { Contract, MarketOffer, Recommendation, Usage } from "@/lib/types";
 import { DEFAULT_CONTRACT, DEFAULT_USAGE, MARKET_OFFERS } from "@/lib/market-data";
 import { buildRecommendation } from "@/lib/calc";
 import { supabase } from "@/integrations/supabase/client";
+import { contractFromRow, offerFromRow, usageFromRow } from "@/lib/db-mappers";
 
 interface EnerwiseContextValue {
   user: User | null;
@@ -70,38 +71,9 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
         supabase.from("tariffs").select("*"),
       ]);
       if (cancelled) return;
-      setContractState(
-        c.data
-          ? {
-              supplier: c.data.supplier as Contract["supplier"],
-              tariffType: c.data.tariff_type as Contract["tariffType"],
-              pricePerKwh: Number(c.data.price_per_kwh),
-              pricePerGas: Number(c.data.price_per_gas),
-              contractEndDate: c.data.contract_end_date ?? "",
-              exitFee: Number(c.data.exit_fee),
-              exitFeeCondition: c.data.exit_fee_condition,
-            }
-          : DEFAULT_CONTRACT,
-      );
-      setUsageState(
-        u.data
-          ? {
-              monthlyElectricity: Number(u.data.monthly_electricity),
-              monthlyGas: Number(u.data.monthly_gas),
-            }
-          : DEFAULT_USAGE,
-      );
-      if (t.data?.length) {
-        setOffers(
-          t.data.map((r) => ({
-            supplier: r.supplier,
-            kwhPrice: Number(r.kwh_price),
-            gasPrice: Number(r.gas_price),
-            contractLength: r.contract_length,
-            promo: Number(r.promo),
-          })),
-        );
-      }
+      setContractState(c.data ? contractFromRow(c.data) : DEFAULT_CONTRACT);
+      setUsageState(u.data ? usageFromRow(u.data) : DEFAULT_USAGE);
+      if (t.data?.length) setOffers(t.data.map(offerFromRow));
       setDataReady(true);
     })();
     return () => {
@@ -122,6 +94,8 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
         contract_end_date: next.contractEndDate || null,
         exit_fee: next.exitFee,
         exit_fee_condition: next.exitFeeCondition,
+        feed_in_cost_per_kwh: next.feedInCost,
+        feed_in_compensation_per_kwh: next.feedInCompensation,
         updated_at: new Date().toISOString(),
       });
       if (error) throw error;
@@ -138,6 +112,9 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
         user_id: userId,
         monthly_electricity: next.monthlyElectricity,
         monthly_gas: next.monthlyGas,
+        has_solar: next.hasSolar,
+        annual_grid_import: next.annualGridImport,
+        annual_feed_in: next.annualFeedIn,
         updated_at: new Date().toISOString(),
       });
       if (error) throw error;
