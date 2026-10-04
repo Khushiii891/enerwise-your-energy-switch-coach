@@ -8,11 +8,25 @@ import {
   type ReactNode,
 } from "react";
 import type { User } from "@supabase/supabase-js";
-import type { Contract, MarketOffer, Recommendation, Usage } from "@/lib/types";
-import { DEFAULT_CONTRACT, DEFAULT_USAGE, MARKET_OFFERS } from "@/lib/market-data";
-import { buildRecommendation } from "@/lib/calc";
+import type {
+  Contract,
+  ControlSettings,
+  MarketOffer,
+  PlannedSwitch,
+  Recommendation,
+  SavingsResult,
+  Usage,
+} from "@/lib/types";
+import { DEFAULT_CONTRACT, DEFAULT_CONTROL, DEFAULT_USAGE, MARKET_OFFERS } from "@/lib/market-data";
+import { buildRecommendation, pickAutoSwitch } from "@/lib/calc";
 import { supabase } from "@/integrations/supabase/client";
-import { contractFromRow, offerFromRow, usageFromRow } from "@/lib/db-mappers";
+import {
+  contractFromRow,
+  controlFromRow,
+  offerFromRow,
+  switchFromRow,
+  usageFromRow,
+} from "@/lib/db-mappers";
 
 interface EnerwiseContextValue {
   user: User | null;
@@ -28,6 +42,15 @@ interface EnerwiseContextValue {
   setUsage: (next: Usage) => Promise<void>;
   reset: () => Promise<void>;
   recommendation: Recommendation;
+  control: ControlSettings;
+  /** False until the user has chosen a mode at least once. */
+  controlSaved: boolean;
+  setControl: (next: ControlSettings) => Promise<void>;
+  /** Latest simulated switch (only exposed in automatic mode). */
+  latestSwitch: PlannedSwitch | null;
+  cancelSwitch: () => Promise<void>;
+  refreshSwitch: () => void;
+  autoCandidate: SavingsResult | null;
 }
 
 const EnerwiseContext = createContext<EnerwiseContextValue | null>(null);
@@ -41,6 +64,9 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
   const [offers, setOffers] = useState<MarketOffer[]>(MARKET_OFFERS);
   const [version, setVersion] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [control, setControlState] = useState<ControlSettings>(DEFAULT_CONTROL);
+  const [controlSaved, setControlSaved] = useState(false);
+  const [latestSwitch, setLatestSwitch] = useState<PlannedSwitch | null>(null);
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
@@ -65,15 +91,26 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
     (async () => {
       const roles = await supabase.from("user_roles").select("role").eq("user_id", userId);
       if (!cancelled) setIsAdmin(!!roles.data?.some((r) => r.role === "admin"));
-      const [c, u, t] = await Promise.all([
+      const [c, u, t, cs, ps] = await Promise.all([
         supabase.from("contracts").select("*").eq("user_id", userId).maybeSingle(),
         supabase.from("usage").select("*").eq("user_id", userId).maybeSingle(),
         supabase.from("tariffs").select("*"),
+        supabase.from("control_settings").select("*").eq("user_id", userId).maybeSingle(),
+        supabase
+          .from("planned_switches")
+          .select("*")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
       ]);
       if (cancelled) return;
       setContractState(c.data ? contractFromRow(c.data) : DEFAULT_CONTRACT);
       setUsageState(u.data ? usageFromRow(u.data) : DEFAULT_USAGE);
       if (t.data?.length) setOffers(t.data.map(offerFromRow));
+      setControlState(cs.data ? controlFromRow(cs.data) : DEFAULT_CONTROL);
+      setControlSaved(!!cs.data);
+      setLatestSwitch(ps.data ? switchFromRow(ps.data) : null);
       setDataReady(true);
     })();
     return () => {
@@ -133,6 +170,103 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
     [contract, usage, offers],
   );
 
+  const setControl = useCallback(
+    async (next: ControlSettings) => {
+      if (!userId) return;
+      const { error } = await supabase.from("control_settings").upsert({
+        user_id: userId,
+        mode: next.mode,
+        min_savings: next.minSavings,
+        allowed_types: next.allowedTypes,
+        excluded_suppliers: next.excludedSuppliers,
+        cancel_window_days: next.cancelWindowDays,
+        updated_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+      // Leaving automatic mode (or changing conditions) cancels any pending simulated switch.
+      if (latestSwitch?.status === "planned") {
+        const { data } = await supabase
+          .from("planned_switches")
+          .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
+          .eq("id", latestSwitch.id)
+          .select("*")
+          .single();
+        if (data) setLatestSwitch(switchFromRow(data));
+      }
+      setControlState(next);
+      setControlSaved(true);
+      setVersion((v) => v + 1);
+    },
+    [userId, latestSwitch],
+  );
+
+  const cancelSwitch = useCallback(async () => {
+    if (!latestSwitch || latestSwitch.status !== "planned") return;
+    const { data, error } = await supabase
+      .from("planned_switches")
+      .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
+      .eq("id", latestSwitch.id)
+      .select("*")
+      .single();
+    if (error) throw error;
+    setLatestSwitch(switchFromRow(data));
+    setVersion((v) => v + 1);
+  }, [latestSwitch]);
+
+  const autoCandidate = useMemo(
+    () => (control.mode === "auto" ? pickAutoSwitch(recommendation, control) : null),
+    [control, recommendation],
+  );
+
+  /** Simulation engine: complete expired switches, plan new ones when conditions are met. */
+  const [tick, setTick] = useState(0);
+  const refreshSwitch = useCallback(() => setTick((t) => t + 1), []);
+  useEffect(() => {
+    if (!userId || !dataReady || control.mode !== "auto") return;
+    let cancelled = false;
+    (async () => {
+      const s = latestSwitch;
+      if (s?.status === "planned") {
+        if (new Date(s.plannedDate).getTime() <= Date.now()) {
+          const { data } = await supabase
+            .from("planned_switches")
+            .update({ status: "completed" })
+            .eq("id", s.id)
+            .eq("status", "planned")
+            .select("*")
+            .maybeSingle();
+          if (!cancelled && data) {
+            setLatestSwitch(switchFromRow(data));
+            setVersion((v) => v + 1);
+          }
+        }
+        return;
+      }
+      if (s?.status === "completed") return;
+      if (!autoCandidate) return;
+      // Don't re-plan the same supplier right after the user cancelled it.
+      if (s?.status === "cancelled" && s.supplier === autoCandidate.offer.supplier) return;
+      const planned = new Date(Date.now() + control.cancelWindowDays * 86400000).toISOString();
+      const { data } = await supabase
+        .from("planned_switches")
+        .insert({
+          user_id: userId,
+          supplier: autoCandidate.offer.supplier,
+          net_savings: Math.round(autoCandidate.netSavings * 100) / 100,
+          planned_date: planned,
+        })
+        .select("*")
+        .single();
+      if (!cancelled && data) {
+        setLatestSwitch(switchFromRow(data));
+        setVersion((v) => v + 1);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, dataReady, control, autoCandidate, latestSwitch, tick]);
+
   const value = useMemo<EnerwiseContextValue>(
     () => ({
       user,
@@ -147,8 +281,15 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
       setUsage,
       reset,
       recommendation,
+      control,
+      controlSaved,
+      setControl,
+      latestSwitch: control.mode === "auto" ? latestSwitch : null,
+      cancelSwitch,
+      refreshSwitch,
+      autoCandidate,
     }),
-    [user, authReady, isAdmin, dataReady, contract, usage, offers, version, setContract, setUsage, reset, recommendation],
+    [user, authReady, isAdmin, dataReady, contract, usage, offers, version, setContract, setUsage, reset, recommendation, control, controlSaved, setControl, latestSwitch, cancelSwitch, refreshSwitch, autoCandidate],
   );
 
   return <EnerwiseContext.Provider value={value}>{children}</EnerwiseContext.Provider>;
