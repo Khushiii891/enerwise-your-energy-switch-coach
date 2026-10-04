@@ -82,6 +82,14 @@ function recCsv(rows: AdminRow[]): string {
   return lines.join("\n");
 }
 
+/** Rows arrive newest first; keep each user's first (= latest) recommendation. */
+function latestPerUser(rows: AdminRow[]): AdminRow[] {
+  const seen = new Set<string>();
+  return rows.filter((r) => (seen.has(r.user_id) ? false : (seen.add(r.user_id), true)));
+}
+
+type Audience = "all" | "demo" | "real";
+
 function AdminPage() {
   const { isAdmin } = useEnerwise();
   const list = useServerFn(listAdminRecommendations);
@@ -94,6 +102,9 @@ function AdminPage() {
   const [customerTypes, setCustomerTypes] = useState<string[]>([]);
   const [customerType, setCustomerType] = useState("all");
   const [includeDemo, setIncludeDemo] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [csvLatestOnly, setCsvLatestOnly] = useState(true);
+  const [audience, setAudience] = useState<Audience>("all");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [recalcBusy, setRecalcBusy] = useState(false);
   const loadControl = useCallback(() => {
@@ -164,9 +175,15 @@ function AdminPage() {
     }
   }
 
+  const inAudience = (uid: string) =>
+    audience === "all" || (audience === "demo" ? demoIds.has(uid) : !demoIds.has(uid));
+  const audienceRows = rows.filter((r) => inAudience(r.user_id));
+  const visible = showHistory ? audienceRows : latestPerUser(audienceRows);
+
   function exportCsv() {
-    const keep = (uid: string) => includeDemo || !demoIds.has(uid);
-    const blob = new Blob([toCsv(rows.filter((r) => keep(r.user_id)), settings.filter((x) => keep(x.user_id)), switches.filter((x) => keep(x.user_id)))], { type: "text/csv;charset=utf-8" });
+    const keep = (uid: string) => inAudience(uid) && (includeDemo || !demoIds.has(uid));
+    const recRows = audienceRows.filter((r) => keep(r.user_id));
+    const blob = new Blob([toCsv(csvLatestOnly ? latestPerUser(recRows) : recRows, settings.filter((x) => keep(x.user_id)), switches.filter((x) => keep(x.user_id)))], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -213,7 +230,26 @@ function AdminPage() {
               </SelectContent>
             </Select>
           </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>Households</Label>
+            <Select value={audience} onValueChange={(v) => setAudience(v as Audience)}>
+              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="demo">Demo</SelectItem>
+                <SelectItem value="real">Real</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="ml-auto flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <input type="checkbox" checked={showHistory} onChange={(e) => setShowHistory(e.target.checked)} />
+              Show history
+            </label>
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <input type="checkbox" checked={csvLatestOnly} onChange={(e) => setCsvLatestOnly(e.target.checked)} />
+              Export latest only
+            </label>
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <input type="checkbox" checked={includeDemo} onChange={(e) => setIncludeDemo(e.target.checked)} />
               Include demo rows in export
@@ -222,7 +258,7 @@ function AdminPage() {
               <RefreshCw className={`h-4 w-4 ${recalcBusy ? "animate-spin" : ""}`} /> Recalculate demo data
             </Button>
             <span className="text-xs text-muted-foreground">
-              {loading ? "Loading…" : `${rows.length} recommendations`}
+              {loading ? "Loading…" : `${visible.length} recommendations`}
             </span>
             <Button variant="outline" size="sm" onClick={exportCsv} disabled={!rows.length}>
               <Download className="h-4 w-4" /> Export CSV
@@ -241,7 +277,7 @@ function AdminPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {visible.map((r) => (
               <tr key={r.id} className="border-t border-border align-top">
                 <td className="tabular whitespace-nowrap px-3 py-2">{new Date(r.created_at).toLocaleString("nl-NL")}</td>
                 <td className="px-3 py-2">
@@ -284,7 +320,7 @@ function AdminPage() {
                 </td>
               </tr>
             ))}
-            {!loading && rows.length === 0 && (
+            {!loading && visible.length === 0 && (
               <tr>
                 <td colSpan={11} className="px-3 py-10 text-center text-muted-foreground">
                   No recommendations match these filters.
