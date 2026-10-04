@@ -14,6 +14,7 @@ export interface AdminRow {
   rationale: string;
   caveat: string;
   model: string;
+  fallback_reason: string | null;
   prompt_version: string;
   is_demo: boolean;
   household_id: string | null;
@@ -72,6 +73,7 @@ export const listAdminRecommendations = createServerFn({ method: "POST" })
         rationale: rt.rationale ?? "",
         caveat: rt.caveat ?? "",
         model: r.model,
+        fallback_reason: r.fallback_reason ?? null,
         prompt_version: r.prompt_version,
         is_demo: demoBy.has(r.user_id),
         household_id: demoBy.get(r.user_id)?.household_id ?? null,
@@ -161,11 +163,11 @@ export const generateAdminRationale = createServerFn({ method: "POST" })
     const { rec, decision, payload } = buildPayload(
       contractFromRow(c.data), usageFromRow(u.data), cs.data ? controlFromRow(cs.data) : DEFAULT_CONTROL, offers, lang,
     );
-    const { out, model } = await explainWithAI(payload, rec);
+    const { out, model, fallbackReason } = await explainWithAI(payload, rec);
     const { error } = await supabaseAdmin
       .from("recommendations")
       .update({
-        rationale_text: out, model, prompt_version: PROMPT_VERSION, decision,
+        rationale_text: out, model, prompt_version: PROMPT_VERSION, decision, fallback_reason: fallbackReason,
         best_supplier: rec.best?.offer.supplier ?? null,
         net_savings: rec.best ? Math.round(rec.best.netSavings * 100) / 100 : null,
       })
