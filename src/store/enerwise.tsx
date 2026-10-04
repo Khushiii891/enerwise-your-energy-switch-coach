@@ -23,7 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   contractFromRow,
   controlFromRow,
-  offerFromRow,
+  loadOffers,
   switchFromRow,
   usageFromRow,
 } from "@/lib/db-mappers";
@@ -94,7 +94,7 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
       const [c, u, t, cs, ps] = await Promise.all([
         supabase.from("contracts").select("*").eq("user_id", userId).maybeSingle(),
         supabase.from("usage").select("*").eq("user_id", userId).maybeSingle(),
-        supabase.from("tariffs").select("*"),
+        loadOffers(supabase),
         supabase.from("control_settings").select("*").eq("user_id", userId).maybeSingle(),
         supabase
           .from("planned_switches")
@@ -107,7 +107,7 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
       setContractState(c.data ? contractFromRow(c.data) : DEFAULT_CONTRACT);
       setUsageState(u.data ? usageFromRow(u.data) : DEFAULT_USAGE);
-      if (t.data?.length) setOffers(t.data.map(offerFromRow));
+      setOffers(t);
       setControlState(cs.data ? controlFromRow(cs.data) : DEFAULT_CONTROL);
       setControlSaved(!!cs.data);
       setLatestSwitch(ps.data ? switchFromRow(ps.data) : null);
@@ -133,6 +133,7 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
         exit_fee_condition: next.exitFeeCondition,
         feed_in_cost_per_kwh: next.feedInCost,
         feed_in_compensation_per_kwh: next.feedInCompensation,
+        fixed_fee_month: next.fixedFeeMonth,
         updated_at: new Date().toISOString(),
       });
       if (error) throw error;

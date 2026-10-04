@@ -21,6 +21,7 @@ export type Database = {
           exit_fee_condition: string
           feed_in_compensation_per_kwh: number
           feed_in_cost_per_kwh: number
+          fixed_fee_month: number | null
           price_per_gas: number
           price_per_kwh: number
           supplier: string
@@ -34,6 +35,7 @@ export type Database = {
           exit_fee_condition?: string
           feed_in_compensation_per_kwh?: number
           feed_in_cost_per_kwh?: number
+          fixed_fee_month?: number | null
           price_per_gas: number
           price_per_kwh: number
           supplier: string
@@ -47,6 +49,7 @@ export type Database = {
           exit_fee_condition?: string
           feed_in_compensation_per_kwh?: number
           feed_in_cost_per_kwh?: number
+          fixed_fee_month?: number | null
           price_per_gas?: number
           price_per_kwh?: number
           supplier?: string
@@ -309,7 +312,22 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      current_tariffs: {
+        Row: {
+          contract_length_months: number | null
+          contract_type: string | null
+          fixed_fee_elec_month: number | null
+          fixed_fee_gas_month: number | null
+          gas_price: number | null
+          is_stale: boolean | null
+          kwh_price: number | null
+          promo: string | null
+          scraped_at: string | null
+          source_url: string | null
+          supplier: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       has_role: {

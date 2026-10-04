@@ -50,11 +50,22 @@ class SupplierSource:
     # "static"   -> plain HTTP GET, parse HTML (fast, preferred)
     # "rendered" -> Playwright renders JS, then parse
     # "postcode" -> Playwright fills postcode + house number, then parse
+    # "pdf"      -> find the tariff PDF linked from the page (pdf_link regex), parse its text
     method: str
     # "auto" = detect from page text; "incl_tax" / "supply_only" = force
     price_basis: str = "auto"
     # Which contract columns to keep if the page shows several
     contract_types: tuple[str, ...] = ("variable", "fixed_1y")
+    # Which price to take from a single-contract row: "first" (supply or all-in
+    # first) or "last" (rows like "supply | tax | VAT | total")
+    price_column: str = "first"
+    # method="pdf": regex matched against link hrefs on the page
+    pdf_link: str | None = None
+    # method="postcode": submit once per contract type after ticking these
+    # options (regexes matched against form labels), e.g. {"variable": ["^Variabel$"]}
+    postcode_variants: dict[str, list[str]] = field(default_factory=dict)
+    # False = kept for reference but skipped by the weekly run
+    enabled: bool = True
     # Optional CSS selector to narrow parsing to the tariff block
     scope_selector: str | None = None
     # Postcode-flow hints (regexes matched against labels/placeholders/buttons)
@@ -71,9 +82,9 @@ SUPPLIERS: list[SupplierSource] = [
     SupplierSource(
         supplier="Eneco",
         url="https://www.eneco.nl/duurzame-energie/modelcontract/",
-        method="static",
+        method="rendered",
         price_basis="incl_tax",
-        notes="Modelcontract table on page, prices incl. energy tax.",
+        notes="Modelcontract table is loaded by JS (Oct 2026), prices incl. energy tax.",
     ),
     SupplierSource(
         supplier="Budget Energie",
@@ -85,20 +96,36 @@ SUPPLIERS: list[SupplierSource] = [
     SupplierSource(
         supplier="Greenchoice",
         url="https://www.greenchoice.nl/stroom-en-gas/modelcontract/",
-        method="rendered",
-        notes="Page is JS-heavy; render before parsing.",
+        method="pdf",
+        price_basis="incl_tax",
+        price_column="last",
+        pdf_link=r"tarieven-modelcontract[^/]*\.pdf",
+        notes="Tariffs are in a dated PDF linked from the page (Oct 2026); "
+              "rows are supply | tax | VAT | total. Variable contract only.",
     ),
     SupplierSource(
         supplier="Vattenfall",
         url="https://www.vattenfall.nl/energie/modelcontract-energie/",
         method="postcode",
-        notes="Tariffs only shown after postcode entry.",
+        house_number_field=r"huisn",
+        submit_button=r"aanvragen",
+        notes="Prices appear after a real household address (REFERENCE_POSTCODE / "
+              "REFERENCE_HOUSE_NUMBER); invented addresses are rejected. Result page "
+              "not verified yet (Oct 2026).",
     ),
     SupplierSource(
         supplier="Essent",
-        url="https://www.essent.nl/energie/energieprijzen",
+        url="https://www.essent.nl/energie/modelcontract",
         method="postcode",
-        notes="Tariffs behind postcode check.",
+        house_number_field=r"huisn",
+        submit_button=r"bekijk tarieven",
+        postcode_variants={
+            "variable": [r"^\s*Enkeltarief\s*$", r"^\s*Variabel\s*$"],
+            "fixed_1y": [r"^\s*Enkeltarief\s*$", r"^\s*Vast\s*$"],
+        },
+        notes="Modelcontract tariff calculator; needs a real household address "
+              "(REFERENCE_POSTCODE / REFERENCE_HOUSE_NUMBER). Result layout not "
+              "verified yet (Oct 2026).",
     ),
 ]
 

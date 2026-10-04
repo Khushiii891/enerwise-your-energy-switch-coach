@@ -3,8 +3,8 @@ import { findUnknownNumbers } from "./numberCheck";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { buildRecommendation, pickAutoSwitch } from "./calc";
-import { DEFAULT_CONTRACT, DEFAULT_USAGE, MARKET_OFFERS } from "./market-data";
-import { contractFromRow, controlFromRow, offerFromRow, usageFromRow } from "./db-mappers";
+import { DEFAULT_CONTRACT, DEFAULT_USAGE } from "./market-data";
+import { contractFromRow, controlFromRow, loadOffers, usageFromRow } from "./db-mappers";
 import { DEFAULT_CONTROL } from "./market-data";
 import type { Contract, MarketOffer, Usage } from "./types";
 
@@ -116,13 +116,13 @@ export const generateRationale = createServerFn({ method: "POST" })
     const [c, u, t, cs] = await Promise.all([
       supabase.from("contracts").select("*").eq("user_id", userId).maybeSingle(),
       supabase.from("usage").select("*").eq("user_id", userId).maybeSingle(),
-      supabase.from("tariffs").select("*"),
+      loadOffers(supabase),
       supabase.from("control_settings").select("*").eq("user_id", userId).maybeSingle(),
     ]);
     const control = cs.data ? controlFromRow(cs.data) : DEFAULT_CONTROL;
     const contract: Contract = c.data ? contractFromRow(c.data) : DEFAULT_CONTRACT;
     const usage: Usage = u.data ? usageFromRow(u.data) : DEFAULT_USAGE;
-    const offers: MarketOffer[] = t.data?.length ? t.data.map(offerFromRow) : MARKET_OFFERS;
+    const offers: MarketOffer[] = t;
 
     const rec = buildRecommendation(contract, usage, offers);
     const decision = rec.shouldSwitch ? "switch_now" : "wait";
@@ -165,6 +165,7 @@ export const generateRationale = createServerFn({ method: "POST" })
         contract_end_date: contract.contractEndDate || null,
         exit_fee_eur: contract.exitFee,
         exit_fee_condition: contract.exitFeeCondition,
+        ...(contract.fixedFeeMonth != null ? { fixed_fee_per_month_eur: contract.fixedFeeMonth } : {}),
         ...(solar
           ? {
               feed_in_cost_per_kwh_eur: contract.feedInCost,
@@ -184,8 +185,10 @@ export const generateRationale = createServerFn({ method: "POST" })
         price_per_m3_gas_eur: r.offer.gasPrice,
         feed_in_cost_per_kwh_eur: r.offer.feedInCost,
         feed_in_compensation_per_kwh_eur: r.offer.feedInCompensation,
+        ...(r.fixedFeesCounted ? { fixed_fee_per_month_eur: r2(r.offer.fixedFeeMonth ?? 0) } : {}),
         annual_cost_eur: r2(r.annualCostCandidate),
         net_savings_eur: r2(r.netSavings),
+        ...(r.offer.scrapedAt ? { prices_checked_on: r.offer.scrapedAt.slice(0, 10) } : {}),
       })),
     };
     const hash = JSON.stringify(payload);

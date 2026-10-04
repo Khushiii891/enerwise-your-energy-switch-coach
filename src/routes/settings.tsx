@@ -157,13 +157,13 @@ function SettingsPage() {
               <div className="flex flex-col gap-2">
                 <span className="text-sm font-medium">Allowed tariff types</span>
                 <div className="flex gap-4">
-                  {(["fixed", "dynamic"] as const).map((t) => (
+                  {(["fixed", "variable", "dynamic"] as const).map((t) => (
                     <label key={t} className="flex items-center gap-2 text-sm">
                       <Checkbox
                         checked={form.allowedTypes.includes(t)}
                         onCheckedChange={(v) => toggleType(t, v === true)}
                       />
-                      {t === "fixed" ? "Fixed" : "Dynamic"}
+                      {{ fixed: "Fixed", variable: "Variable", dynamic: "Dynamic" }[t]}
                     </label>
                   ))}
                 </div>

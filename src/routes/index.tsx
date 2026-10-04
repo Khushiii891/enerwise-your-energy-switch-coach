@@ -232,8 +232,15 @@ function SupplierCard({
   isBest: boolean;
   shouldSwitch: boolean;
 }) {
-  const { offer, netSavings, exitFeeApplied, exitFee, grossSavings, annualCostCandidate } =
-    result;
+  const {
+    offer,
+    netSavings,
+    exitFeeApplied,
+    exitFee,
+    fixedFeesCounted,
+    grossSavings,
+    annualCostCandidate,
+  } = result;
   const positive = netSavings > 0;
   const highlight = isBest && shouldSwitch;
 
@@ -253,10 +260,18 @@ function SupplierCard({
               {offer.supplier}
             </CardTitle>
             <CardDescription className="mt-1">
-              {offer.contractLength}-month {offer.tariffType} contract
+              {offer.contractLength > 0
+                ? `${offer.contractLength}-month ${offer.tariffType} contract`
+                : `${offer.tariffType} contract, no fixed term`}
               {offer.promo > 0 && ` · €${offer.promo}/mo promo`}
             </CardDescription>
-            {offer.feedInCost === 0 && (
+            {offer.scrapedAt && (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Prices checked {new Date(offer.scrapedAt).toLocaleDateString("nl-NL")}
+                {offer.isStale && " · Price may be out of date"}
+              </p>
+            )}
+            {!offer.scrapedAt && offer.feedInCost === 0 && (
               <Badge variant="outline" className="mt-2 border-success/40 text-success">Solar-friendly</Badge>
             )}
           </div>
@@ -292,12 +307,22 @@ function SupplierCard({
         <div className="space-y-1.5 text-xs text-muted-foreground">
           <Row label="Electricity" value={`€ ${offer.kwhPrice.toFixed(3)}/kWh`} />
           <Row label="Gas" value={`€ ${offer.gasPrice.toFixed(2)}/m³`} />
-          <Row
-            label="Feed-in costs"
-            value={offer.feedInCost === 0 ? "None" : `€ ${offer.feedInCost.toFixed(3)}/kWh`}
-            tone={offer.feedInCost === 0 ? "pos" : "muted"}
-          />
-          <Row label="Feed-in compensation" value={`€ ${offer.feedInCompensation.toFixed(3)}/kWh`} />
+          {!offer.scrapedAt && (
+            <>
+              <Row
+                label="Feed-in costs"
+                value={offer.feedInCost === 0 ? "None" : `€ ${offer.feedInCost.toFixed(3)}/kWh`}
+                tone={offer.feedInCost === 0 ? "pos" : "muted"}
+              />
+              <Row label="Feed-in compensation" value={`€ ${offer.feedInCompensation.toFixed(3)}/kWh`} />
+            </>
+          )}
+          {offer.fixedFeeMonth != null && (
+            <Row
+              label="Fixed fees"
+              value={`${formatEuro(offer.fixedFeeMonth)}/mo${fixedFeesCounted ? "" : " (not counted)"}`}
+            />
+          )}
           <Row label="Est. annual cost" value={formatEuro(annualCostCandidate)} />
           <Row
             label="Gross saving"
@@ -314,7 +339,7 @@ function SupplierCard({
         <div className="mt-auto flex flex-col gap-2 pt-2">
           <Button asChild variant={highlight ? "default" : "outline"} size="sm">
             <a
-              href="https://example.com"
+              href={offer.sourceUrl ?? "https://example.com"}
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -366,6 +391,8 @@ function Row({
 }
 
 function TimelineNote() {
+  const { offers } = useEnerwise();
+  const live = offers.some((o) => o.scrapedAt);
   return (
     <section className="rounded-xl border border-border/70 bg-card/50 p-4 sm:p-5">
       <div className="flex items-start gap-3">
@@ -374,8 +401,10 @@ function TimelineNote() {
           <p className="font-semibold text-foreground">Recommendation only</p>
           <p>
             Enerwise judges timing — it does not execute switches. Any switching
-            decision is yours to make and carry out yourself. Tariffs are mock
-            data for this prototype and refresh as the market moves.
+            decision is yours to make and carry out yourself.{" "}
+            {live
+              ? "Tariffs come from suppliers' published model-contract prices, checked weekly (incl. energy tax and VAT, excl. network costs)."
+              : "Live tariffs aren't available yet, so the offers shown are sample data."}
           </p>
         </div>
       </div>

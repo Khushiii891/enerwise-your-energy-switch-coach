@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
 import uuid
@@ -41,7 +42,19 @@ def scrape_supplier(
                          duration_s=time.time() - t0)
 
 
+def load_dotenv(path: str = ".env") -> None:
+    """Read KEY=value lines from .env (never committed) without overriding real env vars."""
+    if not os.path.exists(path):
+        return
+    for line in open(path, encoding="utf-8"):
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, value = line.split("=", 1)
+            os.environ.setdefault(key.strip(), value.strip())
+
+
 def main(argv: list[str] | None = None) -> int:
+    load_dotenv()
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true", help="write to ./out instead of Supabase")
     ap.add_argument("--supplier", action="append", help="only this supplier (repeatable)")
@@ -52,7 +65,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     store: Store = LocalStore() if args.dry_run else SupabaseStore()
-    sources = [config.get_supplier(s) for s in args.supplier] if args.supplier else config.SUPPLIERS
+    sources = [config.get_supplier(s) for s in args.supplier] if args.supplier else [s for s in config.SUPPLIERS if s.enabled]
 
     files = dict(item.split("=", 1) for item in args.from_file)
     files = {config.get_supplier(k).supplier: v for k, v in files.items()}

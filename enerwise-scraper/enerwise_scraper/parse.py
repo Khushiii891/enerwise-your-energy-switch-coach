@@ -32,8 +32,12 @@ TAX_RE = re.compile(r"energiebelasting|\bEB\b|belasting", re.I)
 FIXED_FEE_RE = re.compile(r"vaste\s+leveringskosten|vastrecht|per\s+maand|/\s*maand|p/m", re.I)
 KWH_RE = re.compile(r"kwh|stroom|elektriciteit", re.I)
 GAS_RE = re.compile(r"\bm3\b|m³|\bgas\b", re.I)
-ELEC_DAYNIGHT_RE = re.compile(r"\bnormaal\b|\bdal\b|\bpiek\b", re.I)
-INCL_TAX_PAGE_RE = re.compile(r"incl(\.|usief)?\s+(de\s+)?energiebelasting", re.I)
+ELEC_DAYNIGHT_RE = re.compile(r"\bnormaal|\bdal\b|\bdaltarief|\bpiek", re.I)
+# Section headings such as "Stroom", "Gas", "Leveringstarieven elektriciteit"
+ELEC_SECTION_RE = re.compile(r"\b(stroom|elektriciteit)\b", re.I)
+GAS_SECTION_RE = re.compile(r"\bgas\b", re.I)
+PER_DAY_RE = re.compile(r"per\s+dag", re.I)
+INCL_TAX_PAGE_RE =re.compile(r"incl(\.|usief)?\s+(de\s+)?energiebelasting", re.I)
 
 
 def to_float(s: str) -> float:
@@ -136,19 +140,28 @@ def extract_priced_lines(lines: list[str]) -> list[PricedLine]:
             columns = header
             section = None
             continue
-        # section headings like "Stroom" / "Gas" give context to fee rows
+        # section headings like "Stroom" / "Leveringstarieven gas" give context
+        # to rows whose label doesn't name the energy ("Enkeltarief", fees)
         if not PRICE_RE.search(line):
-            if re.fullmatch(r"(stroom|elektriciteit)\b.*", line, re.I) and len(line) < 40:
+            if len(line) < 40 and ELEC_SECTION_RE.search(line):
                 section = "elec"
-            elif re.fullmatch(r"gas\b.*", line, re.I) and len(line) < 40:
+            elif len(line) < 40 and GAS_SECTION_RE.search(line):
                 section = "gas"
             continue
         cls = classify(line)
-        if cls is None and section and FIXED_FEE_RE.search(line) and not EXCLUDE_RE.search(line):
-            cls = (section, "fixed_fee")
+        label = PRICE_RE.split(line)[0]
+        if cls is None and section and not EXCLUDE_RE.search(line):
+            if FIXED_FEE_RE.search(label) or PER_DAY_RE.search(label):
+                cls = (section, "fixed_fee")
+            elif section == "elec" and re.search(r"\benkel", label, re.I):
+                cls = ("elec", "supply")
         if cls is None:
             continue
+        # rows after "Stroom ..." / "Gas ..." rows belong to that energy (PDF tables)
+        section = cls[0]
         prices = [to_float(p) for p in PRICE_RE.findall(line)]
+        if cls[1] == "fixed_fee" and PER_DAY_RE.search(label):
+            prices = [round(p * 365 / 12, 2) for p in prices]
         out.append(PricedLine(cls[0], cls[1], prices, columns, line))
     return out
 
@@ -175,6 +188,8 @@ def parse_tariffs(html: str, source: config.SupplierSource) -> list[TariffRecord
     evidence: dict[str, list[str]] = {}
     for p in priced:
         cols = p.columns or ["variable"]
+        if source.price_column == "last" and len(cols) == 1:
+            p.prices = p.prices[-1:]   # "supply | tax | VAT | total" rows: keep the total
         if len(p.prices) == 1 and len(cols) > 1:
             targets = cols           # one value that applies to all columns (e.g. tax)
             vals = p.prices * len(cols)

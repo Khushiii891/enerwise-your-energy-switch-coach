@@ -11,6 +11,7 @@ export const DEFAULT_CONTRACT: Contract = {
   exitFeeCondition: "only if switching before end date",
   feedInCost: 0.1,
   feedInCompensation: 0.06,
+  fixedFeeMonth: null,
 };
 
 /** Default "My Usage". */

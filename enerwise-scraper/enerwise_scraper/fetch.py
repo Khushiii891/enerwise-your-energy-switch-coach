@@ -1,10 +1,11 @@
 """Getting HTML: plain HTTP for static pages, Playwright for JS and postcode forms."""
 from __future__ import annotations
 
+import html
 import os
 import re
 import urllib.robotparser
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import requests
 
@@ -45,10 +46,12 @@ def fetch_static(url: str) -> str:
 
 
 def _accept_cookies(page) -> None:
-    for pattern in [r"accepteer|akkoord|alle cookies|accept all|toestaan"]:
+    for pattern in [r"accepteer|cookies accepteren|akkoord|alle cookies|accept all|toestaan"]:
         try:
             btn = page.get_by_role("button", name=re.compile(pattern, re.I)).first
-            if btn.is_visible(timeout=2000):
+            # banners often appear a few seconds after load; is_visible() doesn't wait
+            btn.wait_for(state="visible", timeout=6000)
+            if btn.is_visible():
                 btn.click()
                 page.wait_for_timeout(500)
                 return
@@ -77,14 +80,66 @@ def _fill_by_hint(page, hint: str, value: str) -> bool:
     return False
 
 
+ADDRESS_REJECTED_RE = re.compile(
+    r"niet (worden )?(gevonden|herkend)|onbekend adres|huisnummer is ongeldig", re.I
+)
+# Contract-type headings the parser recognises (see parse.CONTRACT_PATTERNS)
+VARIANT_HEADINGS = {"variable": "Variabel", "fixed_1y": "1 jaar vast", "fixed_3y": "3 jaar vast"}
+
+
+def _wait_for_price(page) -> None:
+    page.wait_for_function(
+        "() => /€\\s*\\d[.,]\\d{2}/.test(document.body.innerText)", timeout=30000
+    )
+    page.wait_for_timeout(1500)
+
+
+def _submit(page, source: config.SupplierSource) -> None:
+    page.get_by_role("button", name=re.compile(source.submit_button, re.I)).first.click(timeout=10000)
+    # wait until either prices or an "address not found" message shows up
+    try:
+        page.wait_for_function(
+            "() => /€\\s*\\d[.,]\\d{2}|niet (worden )?(gevonden|herkend)|ongeldig/i.test(document.body.innerText)",
+            timeout=30000,
+        )
+    except Exception:
+        pass
+    page.wait_for_timeout(1500)
+    if ADDRESS_REJECTED_RE.search(page.inner_text("body")):
+        raise FetchError(
+            "supplier rejected the reference address: set REFERENCE_POSTCODE and "
+            "REFERENCE_HOUSE_NUMBER to a real household address (see .env.example)"
+        )
+
+
+def _collect_variants(page, source: config.SupplierSource) -> str:
+    """Submit the form once per contract type and keep only the text that appeared.
+
+    Each result is put under a heading the parser maps to that contract type, so
+    no CSS selectors are needed for the result block.
+    """
+    baseline = set(page.inner_text("body").splitlines())
+    parts = []
+    for ctype, choices in source.postcode_variants.items():
+        for choice in choices:
+            page.locator("label", has_text=re.compile(choice, re.I)).first.click(timeout=10000)
+        _submit(page, source)
+        _wait_for_price(page)
+        new = [l.strip() for l in page.inner_text("body").splitlines()
+               if l.strip() and l not in baseline]
+        parts.append(f"<h2>{VARIANT_HEADINGS[ctype]}</h2>"
+                     + "".join(f"<p>{html.escape(l)}</p>" for l in new))
+    return "<html><body>" + "".join(parts) + "</body></html>"
+
+
 def fetch_rendered(source: config.SupplierSource, postcode_flow: bool = False) -> str:
     try:
         from playwright.sync_api import sync_playwright
     except ImportError as e:  # pragma: no cover
         raise FetchError("Playwright not installed") from e
 
-    postcode = os.getenv("REFERENCE_POSTCODE", config.REFERENCE_POSTCODE)
-    house_no = os.getenv("REFERENCE_HOUSE_NUMBER", config.REFERENCE_HOUSE_NUMBER)
+    postcode = os.getenv("REFERENCE_POSTCODE") or config.REFERENCE_POSTCODE
+    house_no = os.getenv("REFERENCE_HOUSE_NUMBER") or config.REFERENCE_HOUSE_NUMBER
     launch_kwargs = {"headless": True}
     if os.getenv("CHROMIUM_PATH"):
         launch_kwargs["executable_path"] = os.environ["CHROMIUM_PATH"]
@@ -100,14 +155,13 @@ def fetch_rendered(source: config.SupplierSource, postcode_flow: bool = False) -
                     raise FetchError("postcode field not found")
                 _fill_by_hint(page, source.house_number_field, house_no)
                 page.wait_for_timeout(800)  # some forms validate the address first
-                btn = page.get_by_role("button", name=re.compile(source.submit_button, re.I)).first
-                btn.click(timeout=10000)
-            # wait until a euro price is on the page
-            page.wait_for_function(
-                "() => /€\\s*\\d[.,]\\d{2}/.test(document.body.innerText)", timeout=30000
-            )
-            page.wait_for_timeout(1500)
-            html = page.content()
+            if postcode_flow and source.postcode_variants:
+                html = _collect_variants(page, source)
+            else:
+                if postcode_flow:
+                    _submit(page, source)
+                _wait_for_price(page)
+                html = page.content()
             if os.getenv("SAVE_DEBUG_HTML"):
                 os.makedirs("debug", exist_ok=True)
                 with open(f"debug/{source.supplier.replace(' ', '_')}.html", "w") as f:
@@ -122,6 +176,42 @@ def fetch_rendered(source: config.SupplierSource, postcode_flow: bool = False) -
             browser.close()
 
 
+def pdf_to_html(data: bytes) -> str:
+    """PDF text, one <p> per line, so the normal HTML parser can read it."""
+    from io import BytesIO
+
+    from pypdf import PdfReader
+
+    lines = []
+    for page in PdfReader(BytesIO(data)).pages:
+        lines += (page.extract_text() or "").splitlines()
+    return "<html><body>" + "".join(f"<p>{html.escape(l)}</p>" for l in lines) + "</body></html>"
+
+
+def fetch_pdf(source: config.SupplierSource) -> str:
+    """Find the tariff PDF linked from the page (its filename changes with each price update)."""
+    page = fetch_static(source.url)
+    rx = re.compile(source.pdf_link or r"\.pdf", re.I)
+    hrefs = [m for m in re.findall(r'href="([^"]+)"', page) if rx.search(m)]
+    if not hrefs:
+        page = fetch_rendered(source)
+        hrefs = [m for m in re.findall(r'href="([^"]+)"', page) if rx.search(m)]
+    if not hrefs:
+        raise FetchError(f"no PDF link matching {rx.pattern} on {source.url}")
+    pdf_url = urljoin(source.url, html.unescape(hrefs[0]))
+    if not robots_allowed(pdf_url):
+        raise FetchError(f"robots.txt disallows {pdf_url}")
+    resp = requests.get(pdf_url, headers={"User-Agent": config.USER_AGENT}, timeout=30)
+    if resp.status_code != 200:
+        raise FetchError(f"HTTP {resp.status_code} for {pdf_url}")
+    out = pdf_to_html(resp.content)
+    if os.getenv("SAVE_DEBUG_HTML"):
+        os.makedirs("debug", exist_ok=True)
+        with open(f"debug/{source.supplier.replace(' ', '_')}.html", "w") as f:
+            f.write(out)
+    return out
+
+
 def fetch_html(source: config.SupplierSource) -> str:
     if not robots_allowed(source.url):
         raise FetchError(f"robots.txt disallows {source.url}")
@@ -131,4 +221,6 @@ def fetch_html(source: config.SupplierSource) -> str:
         return fetch_rendered(source)
     if source.method == "postcode":
         return fetch_rendered(source, postcode_flow=True)
+    if source.method == "pdf":
+        return fetch_pdf(source)
     raise FetchError(f"unknown method {source.method}")

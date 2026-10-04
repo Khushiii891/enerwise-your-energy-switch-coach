@@ -16,28 +16,21 @@ GitHub Actions (every Monday)
 
 ## One-time setup (about 20 minutes)
 
-1. **Database.** Supabase → SQL Editor → paste `sql/001_phase3_tariffs.sql` → Run.
-2. **GitHub repo.** Create a new (private) repo and push this folder to it.
-3. **Secrets.** Repo → Settings → Secrets and variables → Actions → add
+This folder lives inside the Enerwise app repo. The workflow is at
+`../.github/workflows/scrape.yml` (GitHub only runs workflows from the repo root)
+and the database schema is the migration
+`../supabase/migrations/20261004150000_phase3_scraped_tariffs.sql`.
+
+1. **Database.** Make sure that migration has been applied to Lovable Cloud
+   (ask Lovable to run it, or paste it into the SQL editor).
+2. **Secrets.** GitHub repo → Settings → Secrets and variables → Actions → add
    `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (Supabase → Project Settings → API).
    The service-role key can write everything: never paste it into Lovable.
-4. **First run.** Repo → Actions → "Weekly tariff scrape" → Run workflow.
+3. **First run.** Repo → Actions → "Weekly tariff scrape" → Run workflow.
    Check the log: each supplier prints `[ok]`, `[needs_review]` or `[FAILED]`.
-5. **Point the app at real data.** Paste this into Lovable:
-
-   > Replace the mock `tariffs` table as the source of supplier offers with the
-   > Supabase view `current_tariffs` (columns: supplier, contract_type, kwh_price,
-   > gas_price, fixed_fee_elec_month, fixed_fee_gas_month, contract_length_months,
-   > promo, source_url, scraped_at, is_stale). Treat each row as one candidate
-   > offer, named "{supplier} – {contract_type}". Include the fixed monthly fees
-   > ×12 in the annual cost when present, for both the candidate and (if the user
-   > entered one) the current contract. Keep the net_savings formula and the €50
-   > threshold unchanged. On each offer card show "Prices checked {scraped_at as
-   > date}" and a link to source_url; if is_stale is true show "Price may be out
-   > of date". Add a note on the My Contract form: "Enter prices including energy
-   > tax and VAT, as shown on your contract or annual bill." Pass scraped_at for
-   > the top candidates into generate-rationale so the explanation can mention
-   > how recent the prices are.
+4. **App.** Nothing to do: the app reads `current_tariffs` (see `loadOffers` in
+   `src/lib/db-mappers.ts`) and falls back to the mock `tariffs` table until
+   the view has rows.
 
 ## Running locally
 
@@ -67,15 +60,18 @@ not shown. Check them with the query at the bottom of the SQL file, and if the
 price is real, run
 `update tariff_snapshots set status='ok' where id = …;`.
 
-## Verification status (27 Sep 2026)
+## Verification status (4 Oct 2026, live run)
 
-- Parser, normalisation, quality gate and failure handling are covered by tests
-  on synthetic pages modelled on each layout type.
-- The Playwright postcode flow was tested on a local form page.
-- **Not yet verified against the live supplier sites** (the build environment
-  couldn't reach them). The first GitHub Actions run is the real test: expect to
-  tweak one or two supplier configs, especially Essent and Vattenfall, whose
-  prices sit behind a postcode form.
+| Supplier | Status | Source |
+|---|---|---|
+| Eneco | working | modelcontract page, rendered (table loaded by JS) |
+| Budget Energie | working | modelcontract page, plain HTML |
+| Greenchoice | working (variable only) | dated tariff PDF linked from the modelcontract page |
+| Vattenfall | disabled | prices only inside the sign-up flow for a real address |
+| Essent | disabled | HTTP 403 bot protection; not bypassed |
+
+Saved copies of the working pages are in `tests/fixtures/live_*_2026_10.html`
+and `test_live_supplier_pages` pins their prices.
 
 ## Responsible scraping
 

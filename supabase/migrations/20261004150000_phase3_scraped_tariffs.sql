@@ -1,7 +1,6 @@
--- Enerwise Phase 3: real tariff storage.
--- Run once in Supabase: Dashboard -> SQL Editor -> paste -> Run.
--- The Phase 2 "tariffs" table (mock data) is left untouched so nothing breaks;
--- the app switches to reading the "current_tariffs" view instead.
+-- Enerwise Phase 3: real tariff storage, written by enerwise-scraper/.
+-- The Phase 2 "tariffs" table (mock data) is left untouched: the app reads the
+-- "current_tariffs" view and falls back to "tariffs" while the view is empty.
 
 -- 1. Every scrape result is appended here (full history = evidence for evaluation)
 create table if not exists public.tariff_snapshots (
@@ -52,19 +51,23 @@ where status = 'ok'
 order by supplier, contract_type, scraped_at desc;
 
 -- 4. Security: anyone logged in may READ prices; only the scraper (service-role key,
---    which bypasses RLS) may WRITE.
+--    which bypasses RLS) may WRITE. The app requires sign-in, so no anon access.
+grant select on public.tariff_snapshots to authenticated;
+grant select on public.scrape_runs      to authenticated;
+grant all    on public.tariff_snapshots to service_role;
+grant all    on public.scrape_runs      to service_role;
 alter table public.tariff_snapshots enable row level security;
 alter table public.scrape_runs      enable row level security;
 
 drop policy if exists "read tariffs" on public.tariff_snapshots;
 create policy "read tariffs" on public.tariff_snapshots
-  for select to anon, authenticated using (true);
+  for select to authenticated using (true);
 
 drop policy if exists "read runs" on public.scrape_runs;
 create policy "read runs" on public.scrape_runs
   for select to authenticated using (true);
 
-grant select on public.current_tariffs to anon, authenticated;
+grant select on public.current_tariffs to authenticated, service_role;
 
 -- 5. Useful checks for the evaluation section
 -- Success rate per supplier:

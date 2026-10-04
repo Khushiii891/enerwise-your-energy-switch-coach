@@ -151,6 +151,27 @@ function ContractPage() {
                 />
               </Field>
             </div>
+            <p className="-mt-3 text-xs text-muted-foreground">
+              Enter prices including energy tax and VAT, as shown on your contract or annual bill.
+            </p>
+
+            <Field label="Fixed delivery costs per month (€) — optional" htmlFor="fixedFee">
+              <Input
+                id="fixedFee"
+                type="number"
+                step="0.01"
+                min="0"
+                inputMode="decimal"
+                placeholder="Electricity + gas combined"
+                value={form.fixedFeeMonth ?? ""}
+                onChange={(e) =>
+                  update(
+                    "fixedFeeMonth",
+                    e.target.value === "" ? null : Math.max(0, parseFloat(e.target.value) || 0),
+                  )
+                }
+              />
+            </Field>
 
             <Field label="Contract end date" htmlFor="endDate">
               <Input

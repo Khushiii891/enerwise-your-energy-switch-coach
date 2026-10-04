@@ -73,6 +73,10 @@ export function isWithinContract(endDate: string, now: Date = new Date()): boole
  *   net_savings = (annual cost with current contract)
  *               - (annual cost with candidate contract)
  *               - (exit fee, only if today < contract end date)
+ *
+ * Fixed monthly fees ×12 are added to both sides only when the user entered
+ * their own fixed fee; otherwise they're left out everywhere so the
+ * comparison stays like-for-like. Offers with no known fee count as €0.
  */
 export function buildRecommendation(
   contract: Contract,
@@ -80,27 +84,30 @@ export function buildRecommendation(
   offers: MarketOffer[] = MARKET_OFFERS,
   now: Date = new Date(),
 ): Recommendation {
-  const currentAnnual = annualCost(
-    contract.pricePerKwh,
-    contract.pricePerGas,
-    usage,
-    0,
-    contract.feedInCost,
-    contract.feedInCompensation,
-  );
+  const fixedFeesCounted = contract.fixedFeeMonth != null;
+  const currentAnnual =
+    annualCost(
+      contract.pricePerKwh,
+      contract.pricePerGas,
+      usage,
+      0,
+      contract.feedInCost,
+      contract.feedInCompensation,
+    ) + (fixedFeesCounted ? (contract.fixedFeeMonth ?? 0) * 12 : 0);
 
   const exitFeeApplies = isWithinContract(contract.contractEndDate, now);
 
   const results: SavingsResult[] = offers
     .map((offer): SavingsResult => {
-      const candidateAnnual = annualCost(
-        offer.kwhPrice,
-        offer.gasPrice,
-        usage,
-        offer.promo,
-        offer.feedInCost,
-        offer.feedInCompensation,
-      );
+      const candidateAnnual =
+        annualCost(
+          offer.kwhPrice,
+          offer.gasPrice,
+          usage,
+          offer.promo,
+          offer.feedInCost,
+          offer.feedInCompensation,
+        ) + (fixedFeesCounted ? (offer.fixedFeeMonth ?? 0) * 12 : 0);
       const grossSavings = currentAnnual - candidateAnnual;
       const exitFee = exitFeeApplies ? contract.exitFee : 0;
       const netSavings = grossSavings - exitFee;
@@ -111,6 +118,7 @@ export function buildRecommendation(
         grossSavings,
         exitFeeApplied: exitFeeApplies,
         exitFee,
+        fixedFeesCounted,
         netSavings,
       };
     })

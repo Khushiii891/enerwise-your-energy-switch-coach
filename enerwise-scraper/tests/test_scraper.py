@@ -125,5 +125,33 @@ def test_all_configured_suppliers_are_valid():
     assert {s.supplier for s in config.SUPPLIERS} == {
         "Essent", "Vattenfall", "Eneco", "Budget Energie", "Greenchoice"}
     for s in config.SUPPLIERS:
-        assert s.method in {"static", "rendered", "postcode"}
+        assert s.method in {"static", "rendered", "postcode", "pdf"}
+        assert s.method != "pdf" or s.pdf_link
+        assert s.price_column in {"first", "last"}
         assert s.url.startswith("https://")
+
+
+# ---------- real supplier pages saved October 2026 ------------------------------
+
+@pytest.mark.parametrize("name, fixture, expected", [
+    # supplier, saved page, {contract_type: (kwh all-in, m3 all-in, elec fee/mo, gas fee/mo)}
+    ("budgetenergie", "live_budget_2026_10.html", {
+        "variable": (0.32865, 1.8158, 9.99, 9.99),
+        "fixed_1y": (0.35285, 1.8279, 10.99, 10.99),
+    }),
+    ("eneco", "live_eneco_2026_10.html", {
+        "variable": (0.36122, 1.84154, 10.99, 8.99),
+        "fixed_1y": (0.31186, 1.74751, 10.99, 8.99),
+    }),
+    ("greenchoice", "live_greenchoice_2026_10.html", {
+        "variable": (0.26627, 1.47004, 10.59, 9.58),  # PDF fees are per day
+    }),
+])
+def test_live_supplier_pages(name, fixture, expected):
+    recs = by_type(parse_tariffs((FIX / fixture).read_text(), config.get_supplier(name)))
+    assert set(recs) == set(expected)
+    for ctype, (kwh, gas, fee_e, fee_g) in expected.items():
+        r = validate(recs[ctype])
+        assert (r.kwh_price, r.gas_price) == pytest.approx((kwh, gas))
+        assert (r.fixed_fee_elec_month, r.fixed_fee_gas_month) == pytest.approx((fee_e, fee_g))
+        assert r.status == "ok", r.issues

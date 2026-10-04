@@ -8,7 +8,7 @@ export const SUPPLIERS = [
 
 export type SupplierName = (typeof SUPPLIERS)[number];
 
-export type TariffType = "fixed" | "dynamic";
+export type TariffType = "fixed" | "variable" | "dynamic";
 
 export interface Contract {
   supplier: SupplierName;
@@ -20,6 +20,7 @@ export interface Contract {
   exitFeeCondition: string;
   feedInCost: number; // €/kWh charged for feeding in
   feedInCompensation: number; // €/kWh paid back for feeding in
+  fixedFeeMonth: number | null; // € fixed delivery costs per month (elec + gas), null = not entered
 }
 
 export interface Usage {
@@ -40,16 +41,21 @@ export interface SolarEstimateInputs {
   totalUsage: number;
 }
 
-/** A live market offer from a supplier (mock data). */
+/** A market offer: scraped weekly (current_tariffs view) or mock fallback. */
 export interface MarketOffer {
   supplier: string;
   kwhPrice: number; // €/kWh
   gasPrice: number; // €/m3
-  contractLength: number; // months
+  contractLength: number; // months, 0 = no fixed term
   promo: number; // monthly discount in €
   tariffType: TariffType;
   feedInCost: number; // €/kWh
   feedInCompensation: number; // €/kWh
+  // Set only for scraped offers
+  fixedFeeMonth?: number | undefined; // € per month, elec + gas
+  sourceUrl?: string | undefined;
+  scrapedAt?: string | undefined; // ISO timestamp
+  isStale?: boolean | undefined; // last good scrape is older than 14 days
 }
 
 export interface SavingsResult {
@@ -59,6 +65,7 @@ export interface SavingsResult {
   grossSavings: number;
   exitFeeApplied: boolean;
   exitFee: number;
+  fixedFeesCounted: boolean; // false when the user hasn't entered their own fixed fee
   netSavings: number;
 }
 
