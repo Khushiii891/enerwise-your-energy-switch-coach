@@ -71,6 +71,7 @@ class SupplierSource:
     # Postcode-flow hints (regexes matched against labels/placeholders/buttons)
     postcode_field: str = r"postcode"
     house_number_field: str = r"huisnummer"
+    addition_field: str = r"toev"   # house number addition ("141M" -> "M")
     submit_button: str = r"bekijk|bereken|toon|tarieven|aanbod|volgende"
     notes: str = ""
     extra: dict = field(default_factory=dict)
@@ -104,19 +105,28 @@ SUPPLIERS: list[SupplierSource] = [
               "rows are supply | tax | VAT | total. Variable contract only.",
     ),
     SupplierSource(
+        supplier="Oxxio",
+        url="https://www.oxxio.nl/stroom-en-gas/modelcontract/",
+        method="rendered",
+        price_basis="incl_tax",
+        notes="Same modelcontract table as Eneco (loaded by JS), prices incl. energy tax.",
+    ),
+    SupplierSource(
         supplier="Vattenfall",
         url="https://www.vattenfall.nl/energie/modelcontract-energie/",
         method="postcode",
         house_number_field=r"huisn",
         submit_button=r"aanvragen",
-        notes="Prices appear after a real household address (REFERENCE_POSTCODE / "
-              "REFERENCE_HOUSE_NUMBER); invented addresses are rejected. Result page "
-              "not verified yet (Oct 2026).",
+        enabled=False,
+        notes="Oct 2026: the form accepts a real address but leads into the sign-up "
+              "flow; tariffs only appear at the personal-details step (4 of 4), so "
+              "we don't scrape it. Oxxio replaces it.",
     ),
     SupplierSource(
         supplier="Essent",
         url="https://www.essent.nl/energie/modelcontract",
         method="postcode",
+        price_basis="incl_tax",   # result says "incl. 21% btw"; totals include energy tax
         house_number_field=r"huisn",
         submit_button=r"bekijk tarieven",
         postcode_variants={

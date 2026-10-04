@@ -123,7 +123,7 @@ def test_pipeline_success_and_failure(tmp_path):
 
 def test_all_configured_suppliers_are_valid():
     assert {s.supplier for s in config.SUPPLIERS} == {
-        "Essent", "Vattenfall", "Eneco", "Budget Energie", "Greenchoice"}
+        "Essent", "Vattenfall", "Eneco", "Budget Energie", "Greenchoice", "Oxxio"}
     for s in config.SUPPLIERS:
         assert s.method in {"static", "rendered", "postcode", "pdf"}
         assert s.method != "pdf" or s.pdf_link
@@ -142,6 +142,14 @@ def test_all_configured_suppliers_are_valid():
     ("eneco", "live_eneco_2026_10.html", {
         "variable": (0.36122, 1.84154, 10.99, 8.99),
         "fixed_1y": (0.31186, 1.74751, 10.99, 8.99),
+    }),
+    ("oxxio", "live_oxxio_2026_10.html", {
+        "variable": (0.35666, 1.83745, 10.49, 8.49),
+        "fixed_1y": (0.30861, 1.74589, 10.49, 8.49),
+    }),
+    ("essent", "live_essent_2026_10.html", {   # postcode-calculator results, one per contract
+        "variable": (0.38668, 1.85216, 10.99, 7.99),
+        "fixed_1y": (0.35376, 1.83234, 11.33, 7.99),
     }),
     ("greenchoice", "live_greenchoice_2026_10.html", {
         "variable": (0.26627, 1.47004, 10.59, 9.58),  # PDF fees are per day

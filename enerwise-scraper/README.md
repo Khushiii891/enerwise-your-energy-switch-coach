@@ -67,8 +67,9 @@ price is real, run
 | Eneco | working | modelcontract page, rendered (table loaded by JS) |
 | Budget Energie | working | modelcontract page, plain HTML |
 | Greenchoice | working (variable only) | dated tariff PDF linked from the modelcontract page |
-| Vattenfall | disabled | prices only inside the sign-up flow for a real address |
-| Essent | disabled | HTTP 403 bot protection; not bypassed |
+| Oxxio | working | modelcontract page, rendered (same table as Eneco) |
+| Essent | working (needs `REFERENCE_*` household address) | modelcontract tariff calculator, one submit per contract type |
+| Vattenfall | disabled | tariffs only at the personal-details step of the sign-up flow |
 
 Saved copies of the working pages are in `tests/fixtures/live_*_2026_10.html`
 and `test_live_supplier_pages` pins their prices.

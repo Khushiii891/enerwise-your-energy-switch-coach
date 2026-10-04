@@ -140,6 +140,11 @@ def fetch_rendered(source: config.SupplierSource, postcode_flow: bool = False) -
 
     postcode = os.getenv("REFERENCE_POSTCODE") or config.REFERENCE_POSTCODE
     house_no = os.getenv("REFERENCE_HOUSE_NUMBER") or config.REFERENCE_HOUSE_NUMBER
+    addition = os.getenv("REFERENCE_HOUSE_NUMBER_ADDITION", "")
+    # also accept "141M" / "141-M" in REFERENCE_HOUSE_NUMBER
+    m = re.fullmatch(r"\s*(\d+)\s*-?\s*([A-Za-z0-9]*)\s*", house_no)
+    if m and m.group(2):
+        house_no, addition = m.group(1), addition or m.group(2)
     launch_kwargs = {"headless": True}
     if os.getenv("CHROMIUM_PATH"):
         launch_kwargs["executable_path"] = os.environ["CHROMIUM_PATH"]
@@ -154,6 +159,8 @@ def fetch_rendered(source: config.SupplierSource, postcode_flow: bool = False) -
                 if not _fill_by_hint(page, source.postcode_field, postcode):
                     raise FetchError("postcode field not found")
                 _fill_by_hint(page, source.house_number_field, house_no)
+                if addition and not _fill_by_hint(page, source.addition_field, addition):
+                    raise FetchError("house number addition field not found")
                 page.wait_for_timeout(800)  # some forms validate the address first
             if postcode_flow and source.postcode_variants:
                 html = _collect_variants(page, source)
