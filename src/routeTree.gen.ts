@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ContractRouteImport } from './routes/contract'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as UsageRouteImport } from './routes/usage'
 
 const IndexRoute = IndexRouteImport.update({
@@ -35,6 +36,11 @@ const ContractRoute = ContractRouteImport.update({
   path: '/contract',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UsageRoute = UsageRouteImport.update({
   id: '/usage',
   path: '/usage',
@@ -46,6 +52,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/auth': typeof AuthRoute
   '/contract': typeof ContractRoute
+  '/settings': typeof SettingsRoute
   '/usage': typeof UsageRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +60,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/auth': typeof AuthRoute
   '/contract': typeof ContractRoute
+  '/settings': typeof SettingsRoute
   '/usage': typeof UsageRoute
 }
 export interface FileRoutesById {
@@ -61,14 +69,16 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/auth': typeof AuthRoute
   '/contract': typeof ContractRoute
+  '/settings': typeof SettingsRoute
   '/usage': typeof UsageRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/auth' | '/contract' | '/usage'
+  fullPaths: '/' | '/admin' | '/auth' | '/contract' | '/settings' | '/usage'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/auth' | '/contract' | '/usage'
-  id: '__root__' | '/' | '/admin' | '/auth' | '/contract' | '/usage'
+  to: '/' | '/admin' | '/auth' | '/contract' | '/settings' | '/usage'
+  id:
+    '__root__' | '/' | '/admin' | '/auth' | '/contract' | '/settings' | '/usage'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -76,6 +86,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   AuthRoute: typeof AuthRoute
   ContractRoute: typeof ContractRoute
+  SettingsRoute: typeof SettingsRoute
   UsageRoute: typeof UsageRoute
 }
 
@@ -109,6 +120,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ContractRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/usage': {
       id: '/usage'
       path: '/usage'
@@ -124,6 +142,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   AuthRoute: AuthRoute,
   ContractRoute: ContractRoute,
+  SettingsRoute: SettingsRoute,
   UsageRoute: UsageRoute,
 }
 export const routeTree = rootRouteImport
