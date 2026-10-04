@@ -61,7 +61,6 @@ function AccountPage() {
     }
     const { error } = await supabase.auth.updateUser({ password: next, current_password: current });
     setBusy(false);
-    if (error) console.error("password change failed", error.message);
     if (error) return toast.error(error.message.includes("weak") || error.message.includes("pwned")
       ? "This password is too common or has appeared in a data leak. Choose another."
       : "Couldn't change your password. Please try again.");
@@ -79,7 +78,7 @@ function AccountPage() {
       <Card>
         <CardContent className="flex flex-col gap-3 p-5">
           <p className="flex items-center gap-2 text-sm font-semibold text-foreground"><UserRound className="h-4 w-4" /> Profile</p>
-          <dl className="grid grid-cols-[auto,1fr] gap-x-6 gap-y-2 text-sm">
+          <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
             <dt className="text-muted-foreground">Email</dt><dd className="text-foreground">{user.email}</dd>
             <dt className="text-muted-foreground">Role</dt><dd className="text-foreground">{isAdmin ? "Admin" : "User"}</dd>
             <dt className="text-muted-foreground">Last sign-in</dt><dd className="tabular text-foreground">{fmt(user.last_sign_in_at)}</dd>
