@@ -107,7 +107,7 @@ export function AppHeader() {
                 to="/auth"
                 className="rounded-full px-2 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               >
-                Admin login
+                Log in
               </Link>
             ) : (
               <button
