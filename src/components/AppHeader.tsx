@@ -9,6 +9,7 @@ const NAV = [
   { to: "/", short: "Home", full: "Recommendation" },
   { to: "/contract", short: "Contract", full: "My Contract" },
   { to: "/usage", short: "Usage", full: "My Usage" },
+  { to: "/settings", short: "Mode", full: "Settings" },
 ] as const;
 
 export function AppHeader() {

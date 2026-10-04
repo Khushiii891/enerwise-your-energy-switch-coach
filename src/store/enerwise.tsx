@@ -191,7 +191,7 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
           .eq("id", latestSwitch.id)
           .select("*")
           .single();
-        if (data) setLatestSwitch(switchFromRow(data));
+        if (data) setLatestSwitch(next.mode === "auto" ? null : switchFromRow(data));
       }
       setControlState(next);
       setControlSaved(true);
