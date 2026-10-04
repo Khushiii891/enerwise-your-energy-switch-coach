@@ -54,6 +54,21 @@ export function annualCost(
   return electricity + gas - monthlyPromo * 12;
 }
 
+/** Format an ISO date in the explanation's language, e.g. "31 January 2027" / "31 januari 2027". */
+export function formatDateLong(iso: string, lang: "en" | "nl" = "en"): string {
+  const d = new Date(`${iso.slice(0, 10)}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(lang === "nl" ? "nl-NL" : "en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+}
+
+/** True when a contract end date is set and lies before today (calendar days). */
+export function hasContractEnded(endDate: string, now: Date = new Date()): boolean {
+  if (!endDate) return false;
+  const end = new Date(endDate);
+  if (Number.isNaN(end.getTime())) return false;
+  return !isWithinContract(endDate, now) && endDate.slice(0, 10) < now.toISOString().slice(0, 10);
+}
+
 /** True when an exit fee would be charged (today is before the contract end date). */
 export function isWithinContract(endDate: string, now: Date = new Date()): boolean {
   if (!endDate) return false;
@@ -156,21 +171,20 @@ function explain(
     return "We couldn't find any offers to compare right now. We'll keep watching the market for you.";
   }
 
-  const endDate = contract.contractEndDate
-    ? new Date(contract.contractEndDate).toLocaleDateString("nl-NL", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      })
-    : null;
+  // The static explanation is English, so dates are formatted in English regardless of browser locale.
+  const endDate = contract.contractEndDate ? formatDateLong(contract.contractEndDate, "en") : null;
+  const ended = hasContractEnded(contract.contractEndDate, now);
 
   if (shouldSwitch) {
     const feeNote = exitFeeApplies
       ? ` Even after your € ${contract.exitFee} exit fee, the move pays off.`
-      : " Your contract has no exit fee in effect right now, so the full saving is yours.";
-    const timeNote = endDate
-      ? ` Your current contract runs until ${endDate}, so acting now maximises the months you'd benefit.`
-      : "";
+      : ended && endDate
+        ? ` Your contract ended on ${endDate}, so there is no exit fee and the full saving is yours.`
+        : " Your contract has no exit fee in effect right now, so the full saving is yours.";
+    const timeNote =
+      endDate && !ended
+        ? ` Your current contract runs until ${endDate}, so acting now maximises the months you'd benefit.`
+        : "";
     return `Switching to ${best.offer.supplier} would save you about ${formatEuro(
       best.netSavings,
     )} per year.${feeNote}${timeNote}`;
@@ -184,6 +198,9 @@ function explain(
     )} switch threshold. Waiting could let the gap widen.`;
   }
 
+  if (ended && endDate) {
+    return `Your contract ended on ${endDate}, so there is no exit fee — but no candidate beats your current prices right now. We'll keep watching the market for you.`;
+  }
   return `Your current contract still looks like the better deal — no candidate beats it right now. We'll keep watching the market for you.`;
 }
 

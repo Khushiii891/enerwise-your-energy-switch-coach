@@ -14,6 +14,7 @@ export interface RecalcOutcome {
   recommendationId: string | null;
   decision: "switch_now" | "wait" | null;
   bestSupplier: string | null;
+  unchanged?: boolean;
 }
 
 /**
@@ -21,7 +22,24 @@ export interface RecalcOutcome {
  * Never calls the LLM: the recommendation gets the standard static explanation
  * (model "static"). In automatic mode it also advances the simulated switch.
  */
-export async function recalcUser(admin: Admin, userId: string, offers: MarketOffer[], createdAt?: string): Promise<RecalcOutcome> {
+/** Stable fingerprint of everything the calculation reads. */
+function inputHash(parts: unknown): string {
+  const str = JSON.stringify(parts);
+  let h1 = 0x811c9dc5, h2 = 0;
+  for (let i = 0; i < str.length; i++) {
+    h1 = Math.imul(h1 ^ str.charCodeAt(i), 16777619);
+    h2 = (Math.imul(h2, 31) + str.charCodeAt(i)) | 0;
+  }
+  return `static:${(h1 >>> 0).toString(16)}${(h2 >>> 0).toString(16)}:${str.length}`;
+}
+
+export async function recalcUser(
+  admin: Admin,
+  userId: string,
+  offers: MarketOffer[],
+  createdAt?: string,
+  opts: { skipIfUnchanged?: boolean } = {},
+): Promise<RecalcOutcome> {
   const [c, u, cs, ps] = await Promise.all([
     admin.from("contracts").select("*").eq("user_id", userId).maybeSingle(),
     admin.from("usage").select("*").eq("user_id", userId).maybeSingle(),
@@ -32,15 +50,40 @@ export async function recalcUser(admin: Admin, userId: string, offers: MarketOff
   const contract = contractFromRow(c.data);
   const rec = buildRecommendation(contract, usageFromRow(u.data), offers);
   const decision = rec.shouldSwitch ? "switch_now" : "wait";
+  const netSavings = rec.best ? r2(rec.best.netSavings) : null;
+  const bestSupplier = rec.best?.offer.supplier ?? null;
+  const hash = inputHash({ c: c.data, u: u.data, o: offers.map((o) => [o.supplier, o.kwhPrice, o.gasPrice, o.feedInCost, o.feedInCompensation, o.feedInKnown, o.fixedFeeMonth ?? null]) });
+
+  let skip = false;
+  if (opts.skipIfUnchanged) {
+    const { data: last } = await admin
+      .from("recommendations")
+      .select("id, input_hash, best_supplier, decision, net_savings")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    skip =
+      !!last &&
+      last.input_hash === hash &&
+      last.best_supplier === bestSupplier &&
+      last.decision === decision &&
+      (last.net_savings == null ? null : Number(last.net_savings)) === netSavings;
+    if (skip) {
+      await advanceSwitch(admin, userId, rec, cs.data, ps.data);
+      return { userId, recommendationId: null, decision, bestSupplier, unchanged: true };
+    }
+  }
 
   const { data: saved, error } = await admin
     .from("recommendations")
     .insert({
       user_id: userId,
       current_supplier: contract.supplier,
-      best_supplier: rec.best?.offer.supplier ?? null,
-      net_savings: rec.best ? r2(rec.best.netSavings) : null,
+      best_supplier: bestSupplier,
+      net_savings: netSavings,
       decision,
+      input_hash: hash,
       rationale_text: staticExplanation(rec),
       model: "static",
       prompt_version: PROMPT_VERSION,
@@ -51,10 +94,21 @@ export async function recalcUser(admin: Admin, userId: string, offers: MarketOff
     .single();
   if (error) throw new Error(`recommendation insert failed: ${error.message}`);
 
-  // Simulated automatic mode — same rules as the in-app engine.
-  const control = cs.data ? controlFromRow(cs.data) : DEFAULT_CONTROL;
+  await advanceSwitch(admin, userId, rec, cs.data, ps.data);
+  return { userId, recommendationId: saved.id, decision, bestSupplier };
+}
+
+/** Simulated automatic mode — same rules as the in-app engine. */
+async function advanceSwitch(
+  admin: Admin,
+  userId: string,
+  rec: ReturnType<typeof buildRecommendation>,
+  csRow: Database["public"]["Tables"]["control_settings"]["Row"] | null,
+  psRow: Database["public"]["Tables"]["planned_switches"]["Row"] | null,
+) {
+  const control = csRow ? controlFromRow(csRow) : DEFAULT_CONTROL;
   if (control.mode === "auto") {
-    const s = ps.data;
+    const s = psRow;
     if (s?.status === "planned" && new Date(s.planned_date).getTime() <= Date.now()) {
       await admin.from("planned_switches").update({ status: "completed" }).eq("id", s.id).eq("status", "planned");
     } else if (!s || s.status === "cancelled") {
@@ -69,7 +123,6 @@ export async function recalcUser(admin: Admin, userId: string, offers: MarketOff
       }
     }
   }
-  return { userId, recommendationId: saved.id, decision, bestSupplier: rec.best?.offer.supplier ?? null };
 }
 
 /** Rerun for every user who has saved a contract and usage (sequential: bounded outbound connections). */
@@ -79,7 +132,7 @@ export async function recalcAllUsers(admin: Admin): Promise<RecalcOutcome[]> {
   const out: RecalcOutcome[] = [];
   for (const row of data ?? []) {
     try {
-      out.push(await recalcUser(admin, row.user_id, offers));
+      out.push(await recalcUser(admin, row.user_id, offers, undefined, { skipIfUnchanged: true }));
     } catch (e) {
       console.error("recalc failed for", row.user_id, e);
     }
