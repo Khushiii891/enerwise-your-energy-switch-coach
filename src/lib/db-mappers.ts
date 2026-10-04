@@ -64,7 +64,7 @@ export function scrapedOfferFromRow(r: V["current_tariffs"]["Row"]): MarketOffer
     tariffType: ctype === "variable" ? "variable" : "fixed",
     feedInCost: Number(r.feed_in_cost_per_kwh ?? 0),
     feedInCompensation: Number(r.feed_in_compensation_per_kwh ?? 0),
-    feedInKnown: r.feed_in_cost_per_kwh != null || r.feed_in_compensation_per_kwh != null,
+    feedInKnown: r.feed_in_cost_per_kwh != null && r.feed_in_compensation_per_kwh != null,
     fixedFeeMonth:
       r.fixed_fee_elec_month == null && r.fixed_fee_gas_month == null
         ? undefined

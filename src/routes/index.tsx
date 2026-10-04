@@ -95,6 +95,9 @@ function RecommendationPage() {
               shouldSwitch={recommendation.shouldSwitch}
             />
           ))}
+          {recommendation.unrated.map((o) => (
+            <UnratedCard key={o.supplier} offer={o} />
+          ))}
         </div>
       </section>
 
@@ -458,6 +461,37 @@ function SupplierCard({
             {whySentence(positive, exitFeeApplied, offer.supplier)}
           </p>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function UnratedCard({ offer }: { offer: MarketOffer }) {
+  return (
+    <Card className="flex flex-col border-dashed border-border/70">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base font-bold text-foreground">{offer.supplier}</CardTitle>
+        <CardDescription className="mt-1">
+          {offer.contractLength > 0
+            ? `${offer.contractLength}-month ${offer.tariffType} contract`
+            : `${offer.tariffType} contract, no fixed term`}
+        </CardDescription>
+        <Badge variant="outline" className="mt-2 w-fit text-muted-foreground">
+          2027 feed-in rates not published yet
+        </Badge>
+      </CardHeader>
+      <CardContent className="flex flex-1 flex-col gap-3 text-xs text-muted-foreground">
+        <Row label="Electricity" value={`€ ${offer.kwhPrice.toFixed(3)}/kWh`} />
+        <Row label="Gas" value={`€ ${offer.gasPrice.toFixed(2)}/m³`} />
+        <p className="leading-relaxed">
+          Left out of your comparison: with solar panels, your costs depend on feed-in rates this
+          supplier hasn't published for 2027 yet.
+        </p>
+        <Button asChild variant="outline" size="sm" className="mt-auto">
+          <a href={offer.sourceUrl ?? "https://example.com"} target="_blank" rel="noopener noreferrer">
+            See offer <ArrowUpRight className="h-4 w-4" />
+          </a>
+        </Button>
       </CardContent>
     </Card>
   );

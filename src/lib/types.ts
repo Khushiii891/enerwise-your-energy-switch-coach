@@ -72,6 +72,8 @@ export interface SavingsResult {
 
 export interface Recommendation {
   results: SavingsResult[];
+  /** Solar households only: offers left out because 2027 feed-in rates are unknown (NULL). */
+  unrated: MarketOffer[];
   best: SavingsResult | null;
   shouldSwitch: boolean;
   threshold: number;
