@@ -48,20 +48,20 @@ function AccountPage() {
   const rulesOk = PASSWORD_RULES.every((r) => r.test(next));
   const matches = next.length > 0 && next === confirm;
 
-  async function changePassword(e: React.FormEvent): Promise<unknown> {
+  async function changePassword(e: React.FormEvent): Promise<void> {
     e.preventDefault();
-    if (!rulesOk) return toast.error("The new password doesn't meet all the rules.");
-    if (!matches) return toast.error("The new passwords don't match.");
-    if (next === current) return toast.error("Choose a password different from your current one.");
+    if (!rulesOk) { toast.error("The new password doesn't meet all the rules.");
+    if (!matches) { toast.error("The new passwords don't match.");
+    if (next === current) { toast.error("Choose a password different from your current one.");
     setBusy(true);
     const check = await supabase.auth.signInWithPassword({ email: user!.email!, password: current });
     if (check.error) {
       setBusy(false);
-      return toast.error("Your current password is incorrect.");
+      { toast.error("Your current password is incorrect.");
     }
     const { error } = await supabase.auth.updateUser({ password: next, current_password: current });
     setBusy(false);
-    if (error) return toast.error(error.message.includes("weak") || error.message.includes("pwned")
+    if (error) { toast.error(error.message.includes("weak") || error.message.includes("pwned")
       ? "This password is too common or has appeared in a data leak. Choose another."
       : "Couldn't change your password. Please try again.");
     setCurrent(""); setNext(""); setConfirm("");
