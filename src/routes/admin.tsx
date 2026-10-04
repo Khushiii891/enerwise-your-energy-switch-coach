@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Download, ThumbsDown, ThumbsUp } from "lucide-react";
 import { toast } from "sonner";
-import { listAdminRecommendations, type AdminRow } from "@/lib/admin.functions";
+import { listAdminControl, listAdminRecommendations, type AdminControlRow, type AdminRow, type AdminSwitchRow } from "@/lib/admin.functions";
 import { useEnerwise } from "@/store/enerwise";
 import { formatEuro } from "@/lib/calc";
 import { Button } from "@/components/ui/button";
@@ -38,7 +38,30 @@ function csvCell(v: unknown): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-function toCsv(rows: AdminRow[]): string {
+function section(title: string, header: string[], rows: unknown[][]): string {
+  return [`# ${title}`, header.join(","), ...rows.map((r) => r.map(csvCell).join(","))].join("\n");
+}
+
+function toCsv(rows: AdminRow[], settings: AdminControlRow[], switches: AdminSwitchRow[]): string {
+  return [
+    "# Recommendations",
+    recCsv(rows),
+    "",
+    section(
+      "Control settings",
+      ["created_at", "user_id", "mode", "min_savings", "allowed_types", "excluded_suppliers", "cancel_window_days"],
+      settings.map((s) => [s.created_at, s.user_id, s.mode, s.min_savings, s.allowed_types.join("|"), s.excluded_suppliers.join("|"), s.cancel_window_days]),
+    ),
+    "",
+    section(
+      "Planned switches",
+      ["created_at", "user_id", "supplier", "net_savings", "planned_date", "status", "cancelled_at"],
+      switches.map((w) => [w.created_at, w.user_id, w.supplier, w.net_savings, w.planned_date, w.status, w.cancelled_at]),
+    ),
+  ].join("\n");
+}
+
+function recCsv(rows: AdminRow[]): string {
   const header = [
     "created_at", "user_id", "current_supplier", "best_supplier", "net_savings", "decision",
     "headline", "rationale", "caveat", "model", "prompt_version", "feedback_helpful", "feedback_comment",
@@ -62,6 +85,15 @@ function toCsv(rows: AdminRow[]): string {
 function AdminPage() {
   const { isAdmin } = useEnerwise();
   const list = useServerFn(listAdminRecommendations);
+  const listControl = useServerFn(listAdminControl);
+  const [settings, setSettings] = useState<AdminControlRow[]>([]);
+  const [switches, setSwitches] = useState<AdminSwitchRow[]>([]);
+  useEffect(() => {
+    if (!isAdmin) return;
+    listControl()
+      .then((d) => { setSettings(d.settings); setSwitches(d.switches); })
+      .catch(() => toast.error("Could not load control settings"));
+  }, [isAdmin, listControl]);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [decision, setDecision] = useState<Decision>("all");
@@ -92,7 +124,7 @@ function AdminPage() {
   }
 
   function exportCsv() {
-    const blob = new Blob([toCsv(rows)], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob([toCsv(rows, settings, switches)], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -190,6 +222,49 @@ function AdminPage() {
                   No recommendations match these filters.
                 </td>
               </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <SimpleTable
+        title="Control settings"
+        headers={["Created", "User", "Mode", "Min saving", "Allowed types", "Excluded", "Cancel window"]}
+        rows={settings.map((s) => [
+          new Date(s.created_at).toLocaleString("nl-NL"), s.user_id.slice(0, 8), s.mode, formatEuro(s.min_savings),
+          s.allowed_types.join(", "), s.excluded_suppliers.join(", ") || "—", `${s.cancel_window_days} days`,
+        ])}
+      />
+      <SimpleTable
+        title="Planned switches (simulated)"
+        headers={["Created", "User", "Supplier", "Net saving", "Planned date", "Status", "Cancelled at"]}
+        rows={switches.map((w) => [
+          new Date(w.created_at).toLocaleString("nl-NL"), w.user_id.slice(0, 8), w.supplier, formatEuro(w.net_savings),
+          new Date(w.planned_date).toLocaleDateString("nl-NL"), w.status,
+          w.cancelled_at ? new Date(w.cancelled_at).toLocaleString("nl-NL") : "—",
+        ])}
+      />
+    </div>
+  );
+}
+
+function SimpleTable({ title, headers, rows }: { title: string; headers: string[]; rows: string[][] }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <h2 className="text-lg font-bold text-foreground">{title}</h2>
+      <div className="overflow-x-auto rounded-xl border border-border bg-card">
+        <table className="w-full min-w-[800px] text-left text-xs">
+          <thead className="bg-muted/50 text-[11px] uppercase tracking-wide text-muted-foreground">
+            <tr>{headers.map((h) => <th key={h} className="px-3 py-2 font-medium">{h}</th>)}</tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i} className="border-t border-border">
+                {r.map((c, j) => <td key={j} className="px-3 py-2">{c}</td>)}
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr><td colSpan={headers.length} className="px-3 py-8 text-center text-muted-foreground">Nothing yet.</td></tr>
             )}
           </tbody>
         </table>

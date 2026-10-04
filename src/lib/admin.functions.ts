@@ -70,3 +70,47 @@ export const listAdminRecommendations = createServerFn({ method: "POST" })
       };
     });
   });
+
+export interface AdminControlRow {
+  user_id: string;
+  mode: string;
+  min_savings: number;
+  allowed_types: string[];
+  excluded_suppliers: string[];
+  cancel_window_days: number;
+  created_at: string;
+}
+export interface AdminSwitchRow {
+  id: string;
+  user_id: string;
+  supplier: string;
+  net_savings: number;
+  planned_date: string;
+  status: string;
+  cancelled_at: string | null;
+  created_at: string;
+}
+
+export const listAdminControl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<{ settings: AdminControlRow[]; switches: AdminSwitchRow[] }> => {
+    const { supabase, userId } = context;
+    const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
+    if (!isAdmin) throw new Error("Forbidden");
+    const [s, p] = await Promise.all([
+      supabase.from("control_settings").select("*").order("created_at", { ascending: false }).limit(1000),
+      supabase.from("planned_switches").select("*").order("created_at", { ascending: false }).limit(1000),
+    ]);
+    if (s.error || p.error) throw new Error("Could not load control data");
+    return {
+      settings: (s.data ?? []).map((r) => ({
+        user_id: r.user_id, mode: r.mode, min_savings: Number(r.min_savings),
+        allowed_types: r.allowed_types ?? [], excluded_suppliers: r.excluded_suppliers ?? [],
+        cancel_window_days: r.cancel_window_days, created_at: r.created_at,
+      })),
+      switches: (p.data ?? []).map((r) => ({
+        id: r.id, user_id: r.user_id, supplier: r.supplier, net_savings: Number(r.net_savings),
+        planned_date: r.planned_date, status: r.status, cancelled_at: r.cancelled_at, created_at: r.created_at,
+      })),
+    };
+  });

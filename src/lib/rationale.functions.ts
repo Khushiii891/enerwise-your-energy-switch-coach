@@ -1,12 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { buildRecommendation } from "./calc";
+import { buildRecommendation, pickAutoSwitch } from "./calc";
 import { DEFAULT_CONTRACT, DEFAULT_USAGE, MARKET_OFFERS } from "./market-data";
-import { contractFromRow, offerFromRow, usageFromRow } from "./db-mappers";
+import { contractFromRow, controlFromRow, offerFromRow, usageFromRow } from "./db-mappers";
+import { DEFAULT_CONTROL } from "./market-data";
 import type { Contract, MarketOffer, Usage } from "./types";
 
-export const PROMPT_VERSION = "v2";
+export const PROMPT_VERSION = "v3";
 export const MODEL = "anthropic/claude-haiku-4-5";
 
 const SYSTEM_PROMPT = `You are Enerwise, a calm, neutral advisor for Dutch households deciding
@@ -24,6 +25,11 @@ You receive pre-calculated data. Rules:
 - If the household has solar panels, mention that net metering ends on
   1 January 2027 and explain how feed-in costs and compensation affect
   the recommendation, using only the numbers provided.
+- If control_mode is "auto" and planned_switch is present, explain why
+  that planned (simulated) switch meets the user's own conditions
+  (minimum net savings, allowed tariff types, excluded suppliers) and
+  that they can cancel it within the cancel window. If control_mode is
+  "auto" but no planned_switch is present, say which condition is not met.
 - Never favor a supplier beyond what the numbers show. No hype, no urgency
   tactics. The user always decides and switches themselves.
 - Reply in the language given in "lang" (default English; "nl" = Dutch).
@@ -106,11 +112,13 @@ export const generateRationale = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ lang: z.enum(["en", "nl"]), force: z.boolean() }).parse(d))
   .handler(async ({ data, context }): Promise<RationaleResult> => {
     const { supabase, userId } = context;
-    const [c, u, t] = await Promise.all([
+    const [c, u, t, cs] = await Promise.all([
       supabase.from("contracts").select("*").eq("user_id", userId).maybeSingle(),
       supabase.from("usage").select("*").eq("user_id", userId).maybeSingle(),
       supabase.from("tariffs").select("*"),
+      supabase.from("control_settings").select("*").eq("user_id", userId).maybeSingle(),
     ]);
+    const control = cs.data ? controlFromRow(cs.data) : DEFAULT_CONTROL;
     const contract: Contract = c.data ? contractFromRow(c.data) : DEFAULT_CONTRACT;
     const usage: Usage = u.data ? usageFromRow(u.data) : DEFAULT_USAGE;
     const offers: MarketOffer[] = t.data?.length ? t.data.map(offerFromRow) : MARKET_OFFERS;
@@ -120,11 +128,26 @@ export const generateRationale = createServerFn({ method: "POST" })
     const end = contract.contractEndDate ? new Date(contract.contractEndDate) : null;
     const daysUntilEnd = end ? Math.max(0, Math.ceil((end.getTime() - Date.now()) / 86400000)) : null;
     const solar = usage.hasSolar;
+    const auto = control.mode === "auto" ? pickAutoSwitch(rec, control) : null;
 
     const payload = {
       lang: data.lang,
       decision,
       switch_threshold_eur: rec.threshold,
+      control_mode: control.mode,
+      ...(control.mode === "auto"
+        ? {
+            user_conditions: {
+              min_net_savings_eur: control.minSavings,
+              allowed_tariff_types: control.allowedTypes,
+              excluded_suppliers: control.excludedSuppliers,
+              cancel_window_days: control.cancelWindowDays,
+            },
+            planned_switch: auto
+              ? { supplier: auto.offer.supplier, tariff_type: auto.offer.tariffType, net_savings_eur: r2(auto.netSavings) }
+              : null,
+          }
+        : {}),
       has_solar: solar,
       ...(solar
         ? {
