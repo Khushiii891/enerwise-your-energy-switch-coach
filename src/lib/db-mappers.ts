@@ -76,8 +76,8 @@ export function scrapedOfferFromRow(r: V["current_tariffs"]["Row"]): MarketOffer
     contractLength: r.contract_length_months ?? 0,
     promo: 0,
     tariffType: ctype === "variable" ? "variable" : "fixed",
-    feedInCost: 0,
-    feedInCompensation: 0,
+    feedInCost: Number(r.feed_in_cost_per_kwh ?? 0),
+    feedInCompensation: Number(r.feed_in_compensation_per_kwh ?? 0),
     fixedFeeMonth:
       r.fixed_fee_elec_month == null && r.fixed_fee_gas_month == null
         ? undefined
