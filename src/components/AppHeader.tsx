@@ -88,6 +88,14 @@ export function AppHeader() {
                 <RotateCcw className="h-4 w-4" />
                 <span className="hidden sm:inline">Start over</span>
               </button>
+            ) : null}
+            {user.is_anonymous ? (
+              <Link
+                to="/auth"
+                className="rounded-full px-2 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              >
+                Admin login
+              </Link>
             ) : (
               <button
                 type="button"
