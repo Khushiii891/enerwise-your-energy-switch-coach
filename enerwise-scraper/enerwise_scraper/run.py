@@ -19,13 +19,14 @@ from .fetch import fetch_html
 from .models import RunResult
 from .parse import parse_tariffs
 from .store import IngestStore, LocalStore, Store, SupabaseStore
-from .validate import validate
+from .validate import cross_check, validate
 
 
 def scrape_supplier(
     source: config.SupplierSource,
     store: Store,
     fetcher: Callable[[config.SupplierSource], str] = fetch_html,
+    save: bool = True,
 ) -> RunResult:
     t0 = time.time()
     try:
@@ -35,7 +36,8 @@ def scrape_supplier(
             raise ValueError("page fetched but no tariffs recognised (layout changed?)")
         for rec in records:
             validate(rec, store.latest(rec.supplier, rec.contract_type))
-        store.save_records(records)
+        if save:
+            store.save_records(records)
         return RunResult(source.supplier, ok=True, records=records, duration_s=time.time() - t0)
     except Exception as e:
         return RunResult(source.supplier, ok=False, error=f"{type(e).__name__}: {e}"[:500],
@@ -85,9 +87,20 @@ def main(argv: list[str] | None = None) -> int:
 
     run_id = str(uuid.uuid4())
     results = []
-    for src in sources:
-        res = scrape_supplier(src, store, fetcher)
-        results.append(res)
+    for i, src in enumerate(sources):
+        results.append(scrape_supplier(src, store, fetcher, save=False))
+        if i < len(sources) - 1:
+            time.sleep(2)  # be polite between suppliers
+
+    # Compare suppliers with each other before anything is stored
+    cross_check([r for res in results if res.ok for r in res.records])
+
+    for src, res in zip(sources, results):
+        if res.ok:
+            try:
+                store.save_records(res.records)
+            except Exception as e:
+                res.ok, res.error = False, f"{type(e).__name__}: {e}"[:500]
         try:
             store.save_run(run_id, res)
         except Exception as e:  # logging must never kill the run
@@ -98,7 +111,6 @@ def main(argv: list[str] | None = None) -> int:
                       f"kWh={r.kwh_price} m3={r.gas_price}  {'; '.join(r.issues)}")
         else:
             print(f"[FAILED      ] {src.supplier:15} {res.error}")
-        time.sleep(2)  # be polite between suppliers
 
     n_ok = sum(1 for r in results if r.ok and any(x.status == "ok" for x in r.records))
     print(f"\n{n_ok}/{len(results)} suppliers published fresh prices. run_id={run_id}")

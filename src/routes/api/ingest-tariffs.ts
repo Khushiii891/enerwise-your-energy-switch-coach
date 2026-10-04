@@ -24,6 +24,9 @@ const Snapshot = z.object({
   // optional so older scraper versions keep working
   feed_in_cost_per_kwh: price(0, 2).default(null),
   feed_in_compensation_per_kwh: price(0, 2).default(null),
+  feed_in_period: z.enum(["2026", "2027"]).nullable().default(null),
+  price_note: z.string().max(500).nullable().default(null),
+  valid_from: z.string().date().nullable().default(null),
   contract_length_months: z.number().int().min(0).max(120).nullable(),
   promo: z.string().max(500).nullable(),
   price_basis_detected: z.enum(["incl_tax", "supply_only", "unknown"]),

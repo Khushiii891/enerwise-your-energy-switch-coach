@@ -28,6 +28,13 @@ BOUNDS = {
 }
 # A week-on-week move bigger than this is held for human review, not published.
 MAX_RELATIVE_CHANGE = 0.25
+# A price this far from the median of the OTHER suppliers in the same run is held
+# for review (e.g. a stale tariff sheet, or a price read on the wrong basis).
+MAX_DEVIATION_FROM_MARKET = 0.20
+MIN_SUPPLIERS_FOR_MARKET_CHECK = 3
+# Variable tariffs may change on these dates (day, month); a dated sheet older than
+# the most recent one is treated as possibly outdated.
+VARIABLE_CHANGE_DATES = ((1, 1), (1, 4), (1, 7), (1, 10))
 
 # Reference address for suppliers that only show prices after a postcode.
 # Supply prices are national; the postcode only changes network costs, which we
@@ -59,6 +66,8 @@ class SupplierSource:
     # Which price to take from a single-contract row: "first" (supply or all-in
     # first) or "last" (rows like "supply | tax | VAT | total")
     price_column: str = "first"
+    # Documents the tax/VAT basis of the published price and our conversion
+    price_note: str = ""
     # method="pdf": regex matched against link hrefs on the page
     pdf_link: str | None = None
     # method="postcode": submit once per contract type after ticking these
@@ -85,6 +94,8 @@ SUPPLIERS: list[SupplierSource] = [
         url="https://www.eneco.nl/duurzame-energie/modelcontract/",
         method="rendered",
         price_basis="incl_tax",
+        price_note="all-in as published; page states 'inclusief Energiebelasting' and quotes "
+                   "EB EUR 0,11085/kWh (the incl. 21% btw rate), so VAT included (inferred)",
         notes="Modelcontract table is loaded by JS (Oct 2026), prices incl. energy tax.",
     ),
     SupplierSource(
@@ -92,6 +103,8 @@ SUPPLIERS: list[SupplierSource] = [
         url="https://www.budgetthuis.nl/energie/modelcontract",
         method="static",
         price_basis="supply_only",
+        price_note="supply price + Energiebelasting column (EUR 0,11085/kWh, 0,72680/m3 = "
+                   "incl. 21% btw rates); equals the page's TOTAAL column. VAT inferred",
         notes="Now 'Budget Thuis'. Supply price and energy tax in separate rows.",
     ),
     SupplierSource(
@@ -101,6 +114,8 @@ SUPPLIERS: list[SupplierSource] = [
         price_basis="incl_tax",
         price_column="last",
         pdf_link=r"tarieven-modelcontract[^/]*\.pdf",
+        price_note="Totaaltarief column of the PDF; stated 'inclusief overheidsheffingen en btw' "
+                   "(supply + EB, x1.21). Sheet is dated: see valid_from",
         notes="Tariffs are in a dated PDF linked from the page (Oct 2026); "
               "rows are supply | tax | VAT | total. Variable contract only.",
     ),
@@ -109,6 +124,8 @@ SUPPLIERS: list[SupplierSource] = [
         url="https://www.oxxio.nl/stroom-en-gas/modelcontract/",
         method="rendered",
         price_basis="incl_tax",
+        price_note="all-in as published; page states 'inclusief energiebelasting' and "
+                   "'inclusief 21% btw' (both stated)",
         notes="Same modelcontract table as Eneco (loaded by JS), prices incl. energy tax.",
     ),
     SupplierSource(
@@ -127,6 +144,8 @@ SUPPLIERS: list[SupplierSource] = [
         url="https://www.essent.nl/energie/modelcontract",
         method="postcode",
         price_basis="incl_tax",   # result says "incl. 21% btw"; totals include energy tax
+        price_note="calculator result states 'Tarieven zijn incl. 21% btw' (stated); energy tax "
+                   "not itemised, inclusion inferred (excluding it would put kWh near EUR 0,50)",
         house_number_field=r"huisn",
         submit_button=r"bekijk tarieven",
         postcode_variants={

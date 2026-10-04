@@ -7,9 +7,10 @@ from enerwise_scraper.models import TariffRecord
 from enerwise_scraper.parse import parse_tariffs
 from enerwise_scraper.run import scrape_supplier
 from enerwise_scraper.store import LocalStore
-from enerwise_scraper.validate import validate
+from enerwise_scraper.validate import cross_check, last_variable_change_date, validate
 
 FIX = Path(__file__).parent / "fixtures"
+SCRAPED_AT = "2026-10-04T12:00:00+00:00"   # when the live_* fixtures were saved
 
 
 def src(**kw):
@@ -159,10 +160,16 @@ def test_live_supplier_pages(name, fixture, expected):
     recs = by_type(parse_tariffs((FIX / fixture).read_text(), config.get_supplier(name)))
     assert set(recs) == set(expected)
     for ctype, (kwh, gas, fee_e, fee_g) in expected.items():
+        recs[ctype].scraped_at = SCRAPED_AT
         r = validate(recs[ctype])
         assert (r.kwh_price, r.gas_price) == pytest.approx((kwh, gas))
         assert (r.fixed_fee_elec_month, r.fixed_fee_gas_month) == pytest.approx((fee_e, fee_g))
-        assert r.status == "ok", r.issues
+        if name == "greenchoice":
+            # PDF says "Tarieven geldig per 18-05-2026": older than the 1 Oct change date
+            assert r.valid_from == "2026-05-18"
+            assert r.status == "needs_review" and "2026-10-01" in "; ".join(r.issues)
+        else:
+            assert r.status == "ok", r.issues
 
 
 @pytest.mark.parametrize("name, fixture, expected", [
@@ -179,3 +186,67 @@ def test_live_feed_in_rates(name, fixture, expected):
     for ctype, (cost, comp) in expected.items():
         r = recs[ctype]
         assert (r.feed_in_cost_per_kwh, r.feed_in_compensation_per_kwh) == pytest.approx((cost, comp))
+
+
+
+# ---------- feed-in period, sheet dates, cross-supplier check -----------------
+
+LIVE = [("eneco", "live_eneco"), ("budgetenergie", "live_budget"), ("greenchoice", "live_greenchoice"),
+        ("oxxio", "live_oxxio"), ("essent", "live_essent")]
+
+
+def live_run():
+    """All saved live pages parsed + validated + cross-checked, like one weekly run."""
+    records = []
+    for name, f in LIVE:
+        for r in parse_tariffs((FIX / f"{f}_2026_10.html").read_text(), config.get_supplier(name)):
+            r.scraped_at = SCRAPED_AT
+            records.append(validate(r))
+    return cross_check(records)
+
+
+@pytest.mark.parametrize("name, fixture, period", [
+    ("eneco", "live_eneco", "2027"),        # rows "vanaf 1 januari 2027"
+    ("oxxio", "live_oxxio", "2027"),
+    ("budgetenergie", "live_budget", "2026"),   # surplus-only compensation, no 2027 rates
+    ("greenchoice", "live_greenchoice", "2026"),
+    ("essent", "live_essent", "2026"),          # "t/m 31-12-2026", "Tot 1 januari 2027 salderen"
+])
+def test_feed_in_period(name, fixture, period):
+    recs = parse_tariffs((FIX / f"{fixture}_2026_10.html").read_text(), config.get_supplier(name))
+    assert {r.feed_in_period for r in recs} == {period}
+
+
+def test_last_variable_change_date():
+    from datetime import date
+    assert last_variable_change_date(date(2026, 10, 4)) == date(2026, 10, 1)
+    assert last_variable_change_date(date(2026, 9, 30)) == date(2026, 7, 1)
+    assert last_variable_change_date(date(2027, 1, 1)) == date(2027, 1, 1)
+
+
+def test_every_published_price_is_within_20pct_of_the_market_or_explained():
+    """Fails if any kWh/gas price that would reach the app sits more than 20% from the
+    median of the other suppliers without being held for review with a reason."""
+    records = live_run()
+    ok = [r for r in records if r.status == "ok"]
+    for rec in records:
+        for field in ("kwh_price", "gas_price"):
+            others = [getattr(o, field) for o in ok if o.supplier != rec.supplier]
+            from statistics import median
+            dev = abs(getattr(rec, field) - median(others)) / median(others)
+            if dev > config.MAX_DEVIATION_FROM_MARKET:
+                assert rec.status != "ok", f"{rec.supplier} {rec.contract_type} {field} off by {dev:.0%}"
+                assert any("median" in i or "tariff sheet" in i for i in rec.issues), rec.issues
+
+
+def test_cross_check_flags_greenchoice_kwh():
+    gc = [r for r in live_run() if r.supplier == "Greenchoice"][0]
+    assert gc.status == "needs_review"
+    assert any(i.startswith("kwh_price=0.26627 is -2") for i in gc.issues), gc.issues
+
+
+def test_cross_check_needs_three_other_suppliers():
+    recs = [TariffRecord(supplier=s, contract_type="variable", kwh_price=p, gas_price=1.8,
+                         price_basis_detected="incl_tax") for s, p in (("A", 0.30), ("B", 0.50))]
+    cross_check([validate(r) for r in recs])
+    assert all(r.status == "ok" for r in recs)

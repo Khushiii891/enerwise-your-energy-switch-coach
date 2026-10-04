@@ -174,11 +174,25 @@ FROM_2027_RE = re.compile(r"vanaf\s+1\s+januari\s+2027", re.I)
 UNTIL_2027_RE = re.compile(r"tot\s+1\s+januari\s+2027|t/m\s+31-12-2026", re.I)
 
 
-def extract_feed_in(lines: list[str], source: config.SupplierSource) -> dict[tuple[str, str], float]:
-    """Feed-in cost / compensation per contract type: {(ctype, "cost"|"comp"): EUR/kWh}.
+VALID_FROM_RE = re.compile(r"(?:tarieven\s+)?geldig\s+(?:per|vanaf)\s+(\d{1,2})[-./](\d{1,2})[-./](\d{4})", re.I)
 
-    Rates from 1 Jan 2027 (end of net metering, which the app models) win over
-    rates that only apply until then. Values are stored as positive numbers.
+
+def extract_valid_from(lines: list[str]) -> str | None:
+    """'Tarieven geldig per 18-05-2026' -> '2026-05-18' (dated tariff sheets, e.g. PDFs)."""
+    for line in lines:
+        m = VALID_FROM_RE.search(line)
+        if m:
+            d, mth, y = (int(x) for x in m.groups())
+            return f"{y:04d}-{mth:02d}-{d:02d}"
+    return None
+
+
+def extract_feed_in(lines: list[str], source: config.SupplierSource) -> dict[tuple[str, str], tuple[int, float]]:
+    """Feed-in cost / compensation per contract type: {(ctype, "cost"|"comp"): (priority, EUR/kWh)}.
+
+    priority 2 = row says "vanaf 1 januari 2027" (post net metering, which the app models),
+    1 = no period stated, 0 = explicitly only until 2027. Higher priority wins.
+    Values are stored as positive numbers.
     """
     best: dict[tuple[str, str], tuple[int, float]] = {}
 
@@ -224,7 +238,20 @@ def extract_feed_in(lines: list[str], source: config.SupplierSource) -> dict[tup
             pairs = list(zip(cols, nums))
         for ctype, value in pairs:
             keep((ctype, kind), priority, value)
-    return {k: v for k, (_, v) in best.items()}
+    return best
+
+
+def _rate(feed_in: dict, ctype: str, kind: str) -> float | None:
+    hit = feed_in.get((ctype, kind))
+    return hit[1] if hit else None
+
+
+def _feed_in_period(feed_in: dict, ctype: str) -> str | None:
+    """'2027' only when every rate found for this contract is stated as valid from 2027."""
+    prios = [feed_in[(ctype, k)][0] for k in ("cost", "comp") if (ctype, k) in feed_in]
+    if not prios:
+        return None
+    return "2027" if all(p == 2 for p in prios) else "2026"
 
 
 def detect_basis(lines: list[str], priced: list[PricedLine], forced: str) -> str:
@@ -244,6 +271,7 @@ def parse_tariffs(html: str, source: config.SupplierSource) -> list[TariffRecord
     priced = extract_priced_lines(lines)
     basis = detect_basis(lines, priced, source.price_basis)
     feed_in = extract_feed_in(lines, source)
+    valid_from = extract_valid_from(lines)
 
     # value[(ctype, energy, component)] = price ; first match wins
     values: dict[tuple[str, str, str], float] = {}
@@ -286,8 +314,11 @@ def parse_tariffs(html: str, source: config.SupplierSource) -> list[TariffRecord
                 gas_price=gas,
                 fixed_fee_elec_month=values.get((ctype, "elec", "fixed_fee")),
                 fixed_fee_gas_month=values.get((ctype, "gas", "fixed_fee")),
-                feed_in_cost_per_kwh=feed_in.get((ctype, "cost")),
-                feed_in_compensation_per_kwh=feed_in.get((ctype, "comp")),
+                feed_in_cost_per_kwh=_rate(feed_in, ctype, "cost"),
+                feed_in_compensation_per_kwh=_rate(feed_in, ctype, "comp"),
+                feed_in_period=_feed_in_period(feed_in, ctype),
+                price_note=source.price_note or None,
+                valid_from=valid_from,
                 contract_length_months=CONTRACT_MONTHS.get(ctype),
                 price_basis_detected=basis,
                 source_url=source.url,
