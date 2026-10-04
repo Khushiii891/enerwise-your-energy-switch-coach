@@ -205,6 +205,99 @@ export type Database = {
         }
         Relationships: []
       }
+      scrape_runs: {
+        Row: {
+          created_at: string
+          duration_s: number | null
+          error: string | null
+          id: number
+          ok: boolean
+          records_found: number
+          records_published: number
+          run_id: string
+          supplier: string
+        }
+        Insert: {
+          created_at?: string
+          duration_s?: number | null
+          error?: string | null
+          id?: never
+          ok: boolean
+          records_found?: number
+          records_published?: number
+          run_id: string
+          supplier: string
+        }
+        Update: {
+          created_at?: string
+          duration_s?: number | null
+          error?: string | null
+          id?: never
+          ok?: boolean
+          records_found?: number
+          records_published?: number
+          run_id?: string
+          supplier?: string
+        }
+        Relationships: []
+      }
+      tariff_snapshots: {
+        Row: {
+          contract_length_months: number | null
+          contract_type: string
+          fixed_fee_elec_month: number | null
+          fixed_fee_gas_month: number | null
+          gas_price: number | null
+          id: number
+          issues: string | null
+          kwh_price: number | null
+          method: string | null
+          price_basis_detected: string | null
+          promo: string | null
+          raw_excerpt: string | null
+          scraped_at: string
+          source_url: string
+          status: string
+          supplier: string
+        }
+        Insert: {
+          contract_length_months?: number | null
+          contract_type: string
+          fixed_fee_elec_month?: number | null
+          fixed_fee_gas_month?: number | null
+          gas_price?: number | null
+          id?: never
+          issues?: string | null
+          kwh_price?: number | null
+          method?: string | null
+          price_basis_detected?: string | null
+          promo?: string | null
+          raw_excerpt?: string | null
+          scraped_at?: string
+          source_url: string
+          status: string
+          supplier: string
+        }
+        Update: {
+          contract_length_months?: number | null
+          contract_type?: string
+          fixed_fee_elec_month?: number | null
+          fixed_fee_gas_month?: number | null
+          gas_price?: number | null
+          id?: never
+          issues?: string | null
+          kwh_price?: number | null
+          method?: string | null
+          price_basis_detected?: string | null
+          promo?: string | null
+          raw_excerpt?: string | null
+          scraped_at?: string
+          source_url?: string
+          status?: string
+          supplier?: string
+        }
+        Relationships: []
+      }
       tariffs: {
         Row: {
           contract_length: number
