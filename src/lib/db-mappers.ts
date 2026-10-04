@@ -1,5 +1,5 @@
 import type { Database } from "@/integrations/supabase/types";
-import type { Contract, MarketOffer, Usage } from "./types";
+import type { Contract, ControlSettings, MarketOffer, PlannedSwitch, TariffType, Usage } from "./types";
 
 type T = Database["public"]["Tables"];
 
@@ -34,7 +34,30 @@ export function offerFromRow(r: T["tariffs"]["Row"]): MarketOffer {
     gasPrice: Number(r.gas_price),
     contractLength: r.contract_length,
     promo: Number(r.promo),
+    tariffType: (r.tariff_type === "dynamic" ? "dynamic" : "fixed") as MarketOffer["tariffType"],
     feedInCost: Number(r.feed_in_cost_per_kwh ?? 0),
     feedInCompensation: Number(r.feed_in_compensation_per_kwh ?? 0),
+  };
+}
+
+export function controlFromRow(r: T["control_settings"]["Row"]): ControlSettings {
+  return {
+    mode: r.mode === "auto" ? "auto" : "recommend",
+    minSavings: Number(r.min_savings),
+    allowedTypes: (r.allowed_types ?? []).filter((t): t is TariffType => t === "fixed" || t === "dynamic"),
+    excludedSuppliers: r.excluded_suppliers ?? [],
+    cancelWindowDays: r.cancel_window_days,
+  };
+}
+
+export function switchFromRow(r: T["planned_switches"]["Row"]): PlannedSwitch {
+  return {
+    id: r.id,
+    supplier: r.supplier,
+    netSavings: Number(r.net_savings),
+    plannedDate: r.planned_date,
+    status: r.status as PlannedSwitch["status"],
+    cancelledAt: r.cancelled_at,
+    createdAt: r.created_at,
   };
 }

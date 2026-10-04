@@ -38,7 +38,7 @@ export const Route = createFileRoute("/usage")({
 });
 
 function UsagePage() {
-  const { usage, setUsage } = useEnerwise();
+  const { usage, setUsage, controlSaved } = useEnerwise();
   const navigate = useNavigate();
   const [form, setForm] = useState<Usage>(usage);
 
@@ -53,7 +53,7 @@ function UsagePage() {
       toast.success("Usage saved", {
         description: "Your recommendation now uses these figures.",
       });
-      navigate({ to: "/" });
+      navigate({ to: controlSaved ? "/" : "/settings" });
     } catch {
       toast.error("Could not save your usage. Please try again.");
     }

@@ -1,5 +1,6 @@
 import type {
   Contract,
+  ControlSettings,
   MarketOffer,
   Recommendation,
   SavingsResult,
@@ -171,4 +172,20 @@ function explain(
   }
 
   return `Your current contract still looks like the better deal — no candidate beats it right now. We'll keep watching the market for you.`;
+}
+
+/**
+ * Automatic mode (simulation): the best candidate that meets ALL of the
+ * user's own conditions, and still clears the standard switch threshold.
+ */
+export function pickAutoSwitch(rec: Recommendation, settings: ControlSettings): SavingsResult | null {
+  return (
+    rec.results.find(
+      (r) =>
+        r.netSavings > SWITCH_THRESHOLD &&
+        r.netSavings >= settings.minSavings &&
+        settings.allowedTypes.includes(r.offer.tariffType) &&
+        !settings.excludedSuppliers.includes(r.offer.supplier),
+    ) ?? null
+  );
 }

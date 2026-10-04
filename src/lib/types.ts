@@ -37,6 +37,7 @@ export interface MarketOffer {
   gasPrice: number; // €/m3
   contractLength: number; // months
   promo: number; // monthly discount in €
+  tariffType: TariffType;
   feedInCost: number; // €/kWh
   feedInCompensation: number; // €/kWh
 }
@@ -58,4 +59,24 @@ export interface Recommendation {
   threshold: number;
   exitFeeApplies: boolean;
   summary: string;
+}
+
+export type ControlMode = "recommend" | "auto";
+
+export interface ControlSettings {
+  mode: ControlMode;
+  minSavings: number;
+  allowedTypes: TariffType[];
+  excludedSuppliers: string[];
+  cancelWindowDays: number;
+}
+
+export interface PlannedSwitch {
+  id: string;
+  supplier: string;
+  netSavings: number;
+  plannedDate: string;
+  status: "planned" | "cancelled" | "completed";
+  cancelledAt: string | null;
+  createdAt: string;
 }

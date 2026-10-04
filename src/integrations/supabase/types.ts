@@ -56,6 +56,39 @@ export type Database = {
         }
         Relationships: []
       }
+      control_settings: {
+        Row: {
+          allowed_types: string[]
+          cancel_window_days: number
+          created_at: string
+          excluded_suppliers: string[]
+          min_savings: number
+          mode: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          allowed_types?: string[]
+          cancel_window_days?: number
+          created_at?: string
+          excluded_suppliers?: string[]
+          min_savings?: number
+          mode?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          allowed_types?: string[]
+          cancel_window_days?: number
+          created_at?: string
+          excluded_suppliers?: string[]
+          min_savings?: number
+          mode?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       feedback: {
         Row: {
           comment: string | null
@@ -90,6 +123,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      planned_switches: {
+        Row: {
+          cancelled_at: string | null
+          created_at: string
+          id: string
+          net_savings: number
+          planned_date: string
+          status: string
+          supplier: string
+          user_id: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          created_at?: string
+          id?: string
+          net_savings: number
+          planned_date: string
+          status?: string
+          supplier: string
+          user_id: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          created_at?: string
+          id?: string
+          net_savings?: number
+          planned_date?: string
+          status?: string
+          supplier?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       recommendations: {
         Row: {
@@ -146,6 +212,7 @@ export type Database = {
           kwh_price: number
           promo: number
           supplier: string
+          tariff_type: string
         }
         Insert: {
           contract_length: number
@@ -156,6 +223,7 @@ export type Database = {
           kwh_price: number
           promo?: number
           supplier: string
+          tariff_type?: string
         }
         Update: {
           contract_length?: number
@@ -166,6 +234,7 @@ export type Database = {
           kwh_price?: number
           promo?: number
           supplier?: string
+          tariff_type?: string
         }
         Relationships: []
       }
