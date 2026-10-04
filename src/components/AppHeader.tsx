@@ -1,5 +1,5 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { LogOut, RotateCcw, Zap } from "lucide-react";
+import { LogOut, RotateCcw, UserRound, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -65,6 +65,19 @@ export function AppHeader() {
                 )}
               >
                 Admin
+              </Link>
+            )}
+            {!user.is_anonymous && (
+              <Link
+                to="/account"
+                aria-label="Account settings"
+                title="Account settings"
+                className={cn(
+                  "rounded-full p-1.5 transition-colors",
+                  pathname.startsWith("/account") ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                )}
+              >
+                <UserRound className="h-4 w-4" />
               </Link>
             )}
             {user.is_anonymous ? (
