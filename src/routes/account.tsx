@@ -48,7 +48,7 @@ function AccountPage() {
   const rulesOk = PASSWORD_RULES.every((r) => r.test(next));
   const matches = next.length > 0 && next === confirm;
 
-  async function changePassword(e: React.FormEvent) {
+  async function changePassword(e: React.FormEvent): Promise<unknown> {
     e.preventDefault();
     if (!rulesOk) return toast.error("The new password doesn't meet all the rules.");
     if (!matches) return toast.error("The new passwords don't match.");
