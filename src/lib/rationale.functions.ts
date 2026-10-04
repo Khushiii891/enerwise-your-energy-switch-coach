@@ -3,7 +3,6 @@ import { findUnknownNumbers } from "./numberCheck";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { buildRecommendation, pickAutoSwitch } from "./calc";
-import { DEFAULT_CONTRACT, DEFAULT_USAGE } from "./market-data";
 import { contractFromRow, controlFromRow, loadOffers, usageFromRow } from "./db-mappers";
 import { DEFAULT_CONTROL } from "./market-data";
 import type { Contract, MarketOffer, Usage } from "./types";
@@ -120,8 +119,11 @@ export const generateRationale = createServerFn({ method: "POST" })
       supabase.from("control_settings").select("*").eq("user_id", userId).maybeSingle(),
     ]);
     const control = cs.data ? controlFromRow(cs.data) : DEFAULT_CONTROL;
-    const contract: Contract = c.data ? contractFromRow(c.data) : DEFAULT_CONTRACT;
-    const usage: Usage = u.data ? usageFromRow(u.data) : DEFAULT_USAGE;
+    // Never explain placeholder numbers: the user's own contract, usage and live offers are required.
+    if (!c.data || !u.data) throw new Error("Save your contract and usage first.");
+    if (!t.length) throw new Error("Live tariffs are not available right now.");
+    const contract: Contract = contractFromRow(c.data);
+    const usage: Usage = usageFromRow(u.data);
     const offers: MarketOffer[] = t;
 
     const rec = buildRecommendation(contract, usage, offers);

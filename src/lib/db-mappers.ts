@@ -2,7 +2,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Orientation, Shading } from "./solarEstimate";
 import type { Database } from "@/integrations/supabase/types";
 import type { Contract, ControlSettings, MarketOffer, PlannedSwitch, TariffType, Usage } from "./types";
-import { MARKET_OFFERS } from "./market-data";
 
 type T = Database["public"]["Tables"];
 type V = Database["public"]["Views"];
@@ -42,19 +41,6 @@ export function usageFromRow(r: T["usage"]["Row"]): Usage {
   };
 }
 
-export function offerFromRow(r: T["tariffs"]["Row"]): MarketOffer {
-  return {
-    supplier: r.supplier,
-    kwhPrice: Number(r.kwh_price),
-    gasPrice: Number(r.gas_price),
-    contractLength: r.contract_length,
-    promo: Number(r.promo),
-    tariffType: (r.tariff_type === "dynamic" ? "dynamic" : "fixed") as MarketOffer["tariffType"],
-    feedInCost: Number(r.feed_in_cost_per_kwh ?? 0),
-    feedInCompensation: Number(r.feed_in_compensation_per_kwh ?? 0),
-  };
-}
-
 const SCRAPED_CONTRACT_LABEL: Record<string, string> = {
   variable: "variable",
   fixed_1y: "1 year fixed",
@@ -89,15 +75,15 @@ export function scrapedOfferFromRow(r: V["current_tariffs"]["Row"]): MarketOffer
   };
 }
 
-/** Scraped offers when the scraper has run, else the mock tariffs table, else built-in mocks. */
+/**
+ * Live offers from the weekly scraper (current_tariffs view). No mock fallback:
+ * if live prices are unavailable the app says so instead of showing fake offers.
+ */
 export async function loadOffers(supabase: SupabaseClient<Database>): Promise<MarketOffer[]> {
   const scraped = await supabase.from("current_tariffs").select("*");
-  const live = (scraped.data ?? [])
+  return (scraped.data ?? [])
     .map(scrapedOfferFromRow)
     .filter((o): o is MarketOffer => o !== null);
-  if (live.length) return live;
-  const mock = await supabase.from("tariffs").select("*");
-  return mock.data?.length ? mock.data.map(offerFromRow) : MARKET_OFFERS;
 }
 
 export function controlFromRow(r: T["control_settings"]["Row"]): ControlSettings {

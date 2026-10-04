@@ -6,7 +6,6 @@ import type {
   SavingsResult,
   Usage,
 } from "./types";
-import { MARKET_OFFERS } from "./market-data";
 
 export const SWITCH_THRESHOLD = 50; // € net annual savings to recommend switching
 
@@ -81,7 +80,7 @@ export function isWithinContract(endDate: string, now: Date = new Date()): boole
 export function buildRecommendation(
   contract: Contract,
   usage: Usage,
-  offers: MarketOffer[] = MARKET_OFFERS,
+  offers: MarketOffer[],
   now: Date = new Date(),
 ): Recommendation {
   const fixedFeesCounted = contract.fixedFeeMonth != null;

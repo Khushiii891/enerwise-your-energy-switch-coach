@@ -45,7 +45,23 @@ export const Route = createFileRoute("/")({
 });
 
 function RecommendationPage() {
-  const { contract, usage, recommendation } = useEnerwise();
+  const { contract, usage, recommendation, offers, dataReady, profileComplete } = useEnerwise();
+
+  if (!dataReady) {
+    return <div className="py-20 text-center text-sm text-muted-foreground">Loading…</div>;
+  }
+
+  // No savings until the user's own contract and usage are saved: never compute
+  // a recommendation from placeholder numbers.
+  if (!profileComplete) {
+    return (
+      <div className="flex flex-col gap-8">
+        <SetupPrompt />
+        <MarketPrices offers={offers} />
+        <TimelineNote />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -69,6 +85,7 @@ function RecommendationPage() {
           </span>
         </div>
 
+        {offers.length === 0 && <NoLivePrices />}
         <div className="grid gap-4 sm:grid-cols-2">
           {recommendation.results.map((r) => (
             <SupplierCard
@@ -83,6 +100,97 @@ function RecommendationPage() {
 
       <TimelineNote />
     </div>
+  );
+}
+
+function SetupPrompt() {
+  return (
+    <Card className="border-border/70">
+      <CardHeader>
+        <CardTitle className="text-lg">Tell us about your current deal</CardTitle>
+        <CardDescription>
+          Enerwise compares your own contract and usage with live supplier prices. Enter both to
+          see your personal savings and recommendation.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2 sm:flex-row">
+        <Button asChild>
+          <Link to="/contract">
+            1. My Contract <ArrowRight className="h-4 w-4" />
+          </Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link to="/usage">
+            2. My Usage <ArrowRight className="h-4 w-4" />
+          </Link>
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function NoLivePrices() {
+  return (
+    <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+      Live supplier prices aren't available right now, so there's nothing to compare yet. They're
+      refreshed every week.
+    </p>
+  );
+}
+
+/** Real scraped prices, shown before the user has entered their own contract. */
+function MarketPrices({ offers }: { offers: ReturnType<typeof useEnerwise>["offers"] }) {
+  const sorted = [...offers].sort((a, b) => a.kwhPrice - b.kwhPrice);
+  return (
+    <section className="flex flex-col gap-3">
+      <div className="flex items-baseline justify-between">
+        <h2 className="text-lg font-bold tracking-tight text-foreground">Current market prices</h2>
+        <span className="text-xs text-muted-foreground">
+          Incl. energy tax and VAT, excl. network costs
+        </span>
+      </div>
+      {sorted.length === 0 ? (
+        <NoLivePrices />
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-border/70">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2 font-medium">Offer</th>
+                <th className="px-3 py-2 font-medium">Electricity</th>
+                <th className="px-3 py-2 font-medium">Gas</th>
+                <th className="px-3 py-2 font-medium">Fixed fees</th>
+                <th className="px-3 py-2 font-medium">Checked</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((o) => (
+                <tr key={o.supplier} className="border-t border-border/60">
+                  <td className="px-3 py-2 font-medium text-foreground">
+                    {o.sourceUrl ? (
+                      <a href={o.sourceUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                        {o.supplier}
+                      </a>
+                    ) : (
+                      o.supplier
+                    )}
+                  </td>
+                  <td className="tabular px-3 py-2">€ {o.kwhPrice.toFixed(3)}/kWh</td>
+                  <td className="tabular px-3 py-2">€ {o.gasPrice.toFixed(2)}/m³</td>
+                  <td className="tabular px-3 py-2">
+                    {o.fixedFeeMonth != null ? `${formatEuro(o.fixedFeeMonth)}/mo` : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-muted-foreground">
+                    {o.scrapedAt ? new Date(o.scrapedAt).toLocaleDateString("nl-NL") : "—"}
+                    {o.isStale && " · may be out of date"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 

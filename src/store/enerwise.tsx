@@ -17,7 +17,7 @@ import type {
   SavingsResult,
   Usage,
 } from "@/lib/types";
-import { DEFAULT_CONTRACT, DEFAULT_CONTROL, DEFAULT_USAGE, MARKET_OFFERS } from "@/lib/market-data";
+import { DEFAULT_CONTRACT, DEFAULT_CONTROL, DEFAULT_USAGE } from "@/lib/market-data";
 import { buildRecommendation, pickAutoSwitch } from "@/lib/calc";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -35,7 +35,10 @@ interface EnerwiseContextValue {
   dataReady: boolean;
   contract: Contract;
   usage: Usage;
+  /** Live scraped offers only; empty until loaded or when no live prices exist. */
   offers: MarketOffer[];
+  /** True once the user has saved their own contract AND usage (no placeholder numbers). */
+  profileComplete: boolean;
   /** Bumps whenever saved data changes, so the AI explanation can refresh. */
   version: number;
   setContract: (next: Contract) => Promise<void>;
@@ -61,7 +64,9 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
   const [dataReady, setDataReady] = useState(false);
   const [contract, setContractState] = useState<Contract>(DEFAULT_CONTRACT);
   const [usage, setUsageState] = useState<Usage>(DEFAULT_USAGE);
-  const [offers, setOffers] = useState<MarketOffer[]>(MARKET_OFFERS);
+  const [offers, setOffers] = useState<MarketOffer[]>([]);
+  const [contractSaved, setContractSaved] = useState(false);
+  const [usageSaved, setUsageSaved] = useState(false);
   const [version, setVersion] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
   const [control, setControlState] = useState<ControlSettings>(DEFAULT_CONTROL);
@@ -107,6 +112,8 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
       setContractState(c.data ? contractFromRow(c.data) : DEFAULT_CONTRACT);
       setUsageState(u.data ? usageFromRow(u.data) : DEFAULT_USAGE);
+      setContractSaved(!!c.data);
+      setUsageSaved(!!u.data);
       setOffers(t);
       setControlState(cs.data ? controlFromRow(cs.data) : DEFAULT_CONTROL);
       setControlSaved(!!cs.data);
@@ -137,6 +144,7 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
         updated_at: new Date().toISOString(),
       });
       if (error) throw error;
+      setContractSaved(true);
       setVersion((v) => v + 1);
     },
     [userId],
@@ -163,6 +171,7 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
         updated_at: new Date().toISOString(),
       });
       if (error) throw error;
+      setUsageSaved(true);
       setVersion((v) => v + 1);
     },
     [userId],
@@ -281,6 +290,7 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
       authReady,
       isAdmin,
       dataReady,
+      profileComplete: contractSaved && usageSaved,
       contract,
       usage,
       offers,
@@ -297,7 +307,7 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
       refreshSwitch,
       autoCandidate,
     }),
-    [user, authReady, isAdmin, dataReady, contract, usage, offers, version, setContract, setUsage, reset, recommendation, control, controlSaved, setControl, latestSwitch, cancelSwitch, refreshSwitch, autoCandidate],
+    [user, authReady, isAdmin, dataReady, contractSaved, usageSaved, contract, usage, offers, version, setContract, setUsage, reset, recommendation, control, controlSaved, setControl, latestSwitch, cancelSwitch, refreshSwitch, autoCandidate],
   );
 
   return <EnerwiseContext.Provider value={value}>{children}</EnerwiseContext.Provider>;
