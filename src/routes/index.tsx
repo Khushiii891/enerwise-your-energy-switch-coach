@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { AiRationale } from "@/components/AiRationale";
 import { PlannedSwitchCard } from "@/components/PlannedSwitchCard";
 import { SolarSection } from "@/components/SolarSection";
+import type { MarketOffer } from "@/lib/types";
 
 export const Route = createFileRoute("/")({
   head: () => ({
