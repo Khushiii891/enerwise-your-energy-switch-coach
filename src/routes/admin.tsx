@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Download, ThumbsDown, ThumbsUp } from "lucide-react";
+import { Download, RefreshCw, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
 import { toast } from "sonner";
-import { listAdminControl, listAdminRecommendations, type AdminControlRow, type AdminRow, type AdminSwitchRow } from "@/lib/admin.functions";
+import { generateAdminRationale, listAdminControl, listAdminRecommendations, recalculateDemoData, type AdminControlRow, type AdminRow, type AdminSwitchRow } from "@/lib/admin.functions";
 import { useEnerwise } from "@/store/enerwise";
 import { formatEuro } from "@/lib/calc";
 import { Button } from "@/components/ui/button";
@@ -63,7 +63,7 @@ function toCsv(rows: AdminRow[], settings: AdminControlRow[], switches: AdminSwi
 
 function recCsv(rows: AdminRow[]): string {
   const header = [
-    "created_at", "user_id", "current_supplier", "best_supplier", "net_savings", "decision",
+    "created_at", "user_id", "is_demo", "customer_type", "current_supplier", "best_supplier", "net_savings", "decision",
     "headline", "rationale", "caveat", "model", "prompt_version", "feedback_helpful", "feedback_comment",
   ];
   const lines = [header.join(",")];
@@ -72,7 +72,7 @@ function recCsv(rows: AdminRow[]): string {
     for (const f of fbs) {
       lines.push(
         [
-          r.created_at, r.user_id, r.current_supplier, r.best_supplier, r.net_savings, r.decision,
+          r.created_at, r.user_id, r.is_demo, r.customer_type ?? "", r.current_supplier, r.best_supplier, r.net_savings, r.decision,
           r.headline, r.rationale, r.caveat, r.model, r.prompt_version,
           f ? f.helpful : "", f?.comment ?? "",
         ].map(csvCell).join(","),
@@ -86,14 +86,27 @@ function AdminPage() {
   const { isAdmin } = useEnerwise();
   const list = useServerFn(listAdminRecommendations);
   const listControl = useServerFn(listAdminControl);
+  const genAi = useServerFn(generateAdminRationale);
+  const recalcDemo = useServerFn(recalculateDemoData);
   const [settings, setSettings] = useState<AdminControlRow[]>([]);
   const [switches, setSwitches] = useState<AdminSwitchRow[]>([]);
-  useEffect(() => {
-    if (!isAdmin) return;
+  const [demoIds, setDemoIds] = useState<Set<string>>(new Set());
+  const [customerTypes, setCustomerTypes] = useState<string[]>([]);
+  const [customerType, setCustomerType] = useState("all");
+  const [includeDemo, setIncludeDemo] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [recalcBusy, setRecalcBusy] = useState(false);
+  const loadControl = useCallback(() => {
     listControl()
-      .then((d) => { setSettings(d.settings); setSwitches(d.switches); })
+      .then((d) => {
+        setSettings(d.settings); setSwitches(d.switches);
+        setDemoIds(new Set(d.demoUserIds)); setCustomerTypes(d.customerTypes);
+      })
       .catch(() => toast.error("Could not load control settings"));
-  }, [isAdmin, listControl]);
+  }, [listControl]);
+  useEffect(() => {
+    if (isAdmin) loadControl();
+  }, [isAdmin, loadControl]);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [decision, setDecision] = useState<Decision>("all");
@@ -103,13 +116,13 @@ function AdminPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setRows(await list({ data: { from: from || null, to: to || null, decision } }));
+      setRows(await list({ data: { from: from || null, to: to || null, decision, customerType: customerType === "all" ? null : customerType } }));
     } catch {
       toast.error("Could not load recommendations");
     } finally {
       setLoading(false);
     }
-  }, [list, from, to, decision]);
+  }, [list, from, to, decision, customerType]);
 
   useEffect(() => {
     if (isAdmin) load();
@@ -123,8 +136,37 @@ function AdminPage() {
     );
   }
 
+  async function aiFor(id: string) {
+    setBusyId(id);
+    try {
+      const r = await genAi({ data: { recommendationId: id } });
+      toast[r.isFallback ? "warning" : "success"](r.isFallback ? "AI explanation failed the number check — kept the standard text" : "AI explanation saved");
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not generate explanation");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function recalc() {
+    if (!confirm("Delete and recreate all demo recommendations and planned switches? Demo feedback is kept.")) return;
+    setRecalcBusy(true);
+    try {
+      const r = await recalcDemo();
+      toast.success(`Recalculated ${r.households} demo households: ${r.switchNow} switch now, ${r.wait} wait`);
+      await load();
+      loadControl();
+    } catch {
+      toast.error("Could not recalculate demo data");
+    } finally {
+      setRecalcBusy(false);
+    }
+  }
+
   function exportCsv() {
-    const blob = new Blob([toCsv(rows, settings, switches)], { type: "text/csv;charset=utf-8" });
+    const keep = (uid: string) => includeDemo || !demoIds.has(uid);
+    const blob = new Blob([toCsv(rows.filter((r) => keep(r.user_id)), settings.filter((x) => keep(x.user_id)), switches.filter((x) => keep(x.user_id)))], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -161,7 +203,24 @@ function AdminPage() {
               </SelectContent>
             </Select>
           </div>
-          <div className="ml-auto flex items-center gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label>Customer type</Label>
+            <Select value={customerType} onValueChange={setCustomerType}>
+              <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                {customerTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="ml-auto flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <input type="checkbox" checked={includeDemo} onChange={(e) => setIncludeDemo(e.target.checked)} />
+              Include demo rows in export
+            </label>
+            <Button variant="outline" size="sm" onClick={recalc} disabled={recalcBusy}>
+              <RefreshCw className={`h-4 w-4 ${recalcBusy ? "animate-spin" : ""}`} /> Recalculate demo data
+            </Button>
             <span className="text-xs text-muted-foreground">
               {loading ? "Loading…" : `${rows.length} recommendations`}
             </span>
@@ -176,7 +235,7 @@ function AdminPage() {
         <table className="w-full min-w-[1100px] text-left text-xs">
           <thead className="bg-muted/50 text-[11px] uppercase tracking-wide text-muted-foreground">
             <tr>
-              {["Created", "User", "Current", "Best", "Net saving", "Decision", "Rationale", "Model", "Prompt", "Feedback"].map((h) => (
+              {["Created", "User", "Current", "Best", "Net saving", "Decision", "Rationale", "Model", "Prompt", "Feedback", ""].map((h) => (
                 <th key={h} className="px-3 py-2 font-medium">{h}</th>
               ))}
             </tr>
@@ -185,7 +244,11 @@ function AdminPage() {
             {rows.map((r) => (
               <tr key={r.id} className="border-t border-border align-top">
                 <td className="tabular whitespace-nowrap px-3 py-2">{new Date(r.created_at).toLocaleString("nl-NL")}</td>
-                <td className="px-3 py-2 font-mono text-[10px] text-muted-foreground">{r.user_id.slice(0, 8)}</td>
+                <td className="px-3 py-2">
+                  <div className="font-mono text-[10px] text-muted-foreground">{r.household_id ?? r.user_id.slice(0, 8)}</div>
+                  {r.is_demo && <Badge variant="secondary" className="mt-1">Demo</Badge>}
+                  {r.customer_type && <div className="mt-1 text-[10px] text-muted-foreground">{r.customer_type}</div>}
+                </td>
                 <td className="px-3 py-2">{r.current_supplier ?? "—"}</td>
                 <td className="px-3 py-2">{r.best_supplier ?? "—"}</td>
                 <td className="tabular whitespace-nowrap px-3 py-2">{r.net_savings === null ? "—" : formatEuro(r.net_savings)}</td>
@@ -214,11 +277,16 @@ function AdminPage() {
                     ))
                   )}
                 </td>
+                <td className="px-3 py-2">
+                  <Button variant="outline" size="sm" onClick={() => aiFor(r.id)} disabled={busyId === r.id}>
+                    <Sparkles className="h-3.5 w-3.5" /> {busyId === r.id ? "Generating…" : "Generate AI rationale"}
+                  </Button>
+                </td>
               </tr>
             ))}
             {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-3 py-10 text-center text-muted-foreground">
+                <td colSpan={11} className="px-3 py-10 text-center text-muted-foreground">
                   No recommendations match these filters.
                 </td>
               </tr>

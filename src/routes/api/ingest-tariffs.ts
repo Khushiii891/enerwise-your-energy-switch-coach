@@ -99,11 +99,17 @@ export const Route = createFileRoute("/api/ingest-tariffs")({
           const { error } = await supabaseAdmin.from("tariff_snapshots").insert(snapshots);
           if (error) return json({ error: error.message }, 500);
         }
+        let recalculated = 0;
+        if (snapshots.length) {
+          // New prices: rerun the deterministic calculation for every user (no LLM calls).
+          const { recalcAllUsers } = await import("@/lib/recalc.server");
+          recalculated = (await recalcAllUsers(supabaseAdmin)).filter((r) => r.recommendationId).length;
+        }
         if (runs.length) {
           const { error } = await supabaseAdmin.from("scrape_runs").insert(runs);
           if (error) return json({ error: error.message }, 500);
         }
-        return json({ inserted: { snapshots: snapshots.length, runs: runs.length } });
+        return json({ inserted: { snapshots: snapshots.length, runs: runs.length }, recalculated });
       }),
     },
   },

@@ -96,7 +96,12 @@ export function buildRecommendation(
 
   const exitFeeApplies = isWithinContract(contract.contractEndDate, now);
 
-  const results: SavingsResult[] = offers
+  // Solar households: an offer without published 2027 feed-in rates can't be
+  // compared (NULL is never treated as 0), so it is set aside, not costed.
+  const unrated = usage.hasSolar ? offers.filter((o) => o.feedInKnown === false) : [];
+  const comparable = usage.hasSolar ? offers.filter((o) => o.feedInKnown !== false) : offers;
+
+  const results: SavingsResult[] = comparable
     .map((offer): SavingsResult => {
       const candidateAnnual =
         annualCost(
@@ -130,6 +135,7 @@ export function buildRecommendation(
 
   return {
     results,
+    unrated,
     best,
     shouldSwitch,
     threshold: SWITCH_THRESHOLD,

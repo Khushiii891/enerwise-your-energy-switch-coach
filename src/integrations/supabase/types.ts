@@ -92,6 +92,33 @@ export type Database = {
         }
         Relationships: []
       }
+      demo_households: {
+        Row: {
+          created_at: string
+          customer_type: string
+          household_id: string
+          is_demo: boolean
+          persona: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          customer_type: string
+          household_id: string
+          is_demo?: boolean
+          persona: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          customer_type?: string
+          household_id?: string
+          is_demo?: boolean
+          persona?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       feedback: {
         Row: {
           comment: string | null
