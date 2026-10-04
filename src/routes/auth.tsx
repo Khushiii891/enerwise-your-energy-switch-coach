@@ -22,7 +22,7 @@ export const Route = createFileRoute("/auth")({
 });
 
 function AuthPage() {
-  const { user } = useEnerwise();
+  const { user, isAdmin } = useEnerwise();
   const navigate = useNavigate();
   const [showAdmin, setShowAdmin] = useState(false);
   const [email, setEmail] = useState("");
@@ -30,23 +30,35 @@ function AuthPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (user) navigate({ to: "/" });
-  }, [user, navigate]);
+    if (user && !user.is_anonymous) navigate({ to: isAdmin ? "/admin" : "/" });
+  }, [user, isAdmin, navigate]);
 
   async function continueAsGuest() {
+    if (user?.is_anonymous) {
+      navigate({ to: "/" });
+      return;
+    }
     setBusy(true);
     const { error } = await supabase.auth.signInAnonymously();
     setBusy(false);
     if (error) toast.error("Couldn't start a guest session. Please try again.");
+    else navigate({ to: "/" });
   }
 
   async function adminSignIn(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (user?.is_anonymous) await supabase.auth.signOut();
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     setBusy(false);
     if (error) {
-      toast.error(error.message);
+      toast.error("Wrong email or password.");
+      return;
+    }
+    const { data: roleOk } = await supabase.rpc("has_role", { _user_id: data.user.id, _role: "admin" });
+    if (!roleOk) {
+      await supabase.auth.signOut();
+      toast.error("This account doesn't have admin access.");
       return;
     }
     navigate({ to: "/admin" });
