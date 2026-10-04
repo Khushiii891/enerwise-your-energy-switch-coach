@@ -163,3 +163,19 @@ def test_live_supplier_pages(name, fixture, expected):
         assert (r.kwh_price, r.gas_price) == pytest.approx((kwh, gas))
         assert (r.fixed_fee_elec_month, r.fixed_fee_gas_month) == pytest.approx((fee_e, fee_g))
         assert r.status == "ok", r.issues
+
+
+@pytest.mark.parametrize("name, fixture, expected", [
+    # {contract_type: (feed-in cost, feed-in compensation)} in EUR/kWh, positive numbers
+    ("eneco", "live_eneco_2026_10.html", {"variable": (0.04216, 0.10355), "fixed_1y": (0.04216, 0.0835)}),
+    ("oxxio", "live_oxxio_2026_10.html", {"variable": (0.04216, 0.10179), "fixed_1y": (0.04216, 0.0824)}),
+    ("budgetenergie", "live_budget_2026_10.html", {"variable": (0.0875, 0.09), "fixed_1y": (0.08058, 0.1)}),
+    ("greenchoice", "live_greenchoice_2026_10.html", {"variable": (0.13099, 0.141)}),
+    ("essent", "live_essent_2026_10.html", {"variable": (0.13, 0.15), "fixed_1y": (0.13, 0.15)}),
+])
+def test_live_feed_in_rates(name, fixture, expected):
+    """Rates 'vanaf 1 januari 2027' win over rates that only apply until then."""
+    recs = by_type(parse_tariffs((FIX / fixture).read_text(), config.get_supplier(name)))
+    for ctype, (cost, comp) in expected.items():
+        r = recs[ctype]
+        assert (r.feed_in_cost_per_kwh, r.feed_in_compensation_per_kwh) == pytest.approx((cost, comp))

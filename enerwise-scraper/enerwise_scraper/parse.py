@@ -166,6 +166,67 @@ def extract_priced_lines(lines: list[str]) -> list[PricedLine]:
     return out
 
 
+FEED_COST_RE = re.compile(r"terugleverkosten", re.I)
+FEED_COMP_RE = re.compile(r"terugleververgoeding", re.I)
+# feed-in rates: optional euro sign, may be negative ("€ -0,10355" = paid to you)
+FEED_NUM_RE = re.compile(r"(?:€\s*)?(?<![\d.,])(-?\d[.,]\d{3,5})(?![\d.,])")
+FROM_2027_RE = re.compile(r"vanaf\s+1\s+januari\s+2027", re.I)
+UNTIL_2027_RE = re.compile(r"tot\s+1\s+januari\s+2027|t/m\s+31-12-2026", re.I)
+
+
+def extract_feed_in(lines: list[str], source: config.SupplierSource) -> dict[tuple[str, str], float]:
+    """Feed-in cost / compensation per contract type: {(ctype, "cost"|"comp"): EUR/kWh}.
+
+    Rates from 1 Jan 2027 (end of net metering, which the app models) win over
+    rates that only apply until then. Values are stored as positive numbers.
+    """
+    best: dict[tuple[str, str], tuple[int, float]] = {}
+
+    def keep(key: tuple[str, str], priority: int, value: float) -> None:
+        if key not in best or priority > best[key][0]:
+            best[key] = (priority, abs(value))
+
+    columns: list[str] | None = None
+    table_idx: dict[str, int] = {}   # feed-in columns of a "supply | tax | total | ..." table
+    for line in lines:
+        # contract-type headings; long prose that merely mentions "variabel" is ignored
+        if len(line) < 100:
+            header = detect_contract_header(line)
+            if header:
+                columns = header
+                continue
+        cells = [c.strip() for c in line.split("|")]
+        if len(cells) > 2 and not FEED_NUM_RE.search(line):
+            idx = {("cost" if FEED_COST_RE.search(c) else "comp"): i for i, c in enumerate(cells)
+                   if FEED_COST_RE.search(c) or FEED_COMP_RE.search(c)}
+            if idx:
+                table_idx = idx
+            continue
+        cols = columns or ["variable"]
+        if table_idx and len(cells) > 2 and re.match(r"enkel", cells[0], re.I):
+            for kind, i in table_idx.items():
+                m = FEED_NUM_RE.search(cells[i]) if i < len(cells) else None
+                if m:
+                    keep((cols[0], kind), 1, to_float(m.group(1)))
+            continue
+        kind = "cost" if FEED_COST_RE.search(line) else "comp" if FEED_COMP_RE.search(line) else None
+        if kind is None:
+            continue
+        nums = [to_float(n) for n in FEED_NUM_RE.findall(line)]
+        if not nums:
+            continue
+        if source.price_column == "last" and len(cols) == 1:
+            nums = nums[-1:]
+        priority = 2 if FROM_2027_RE.search(line) else 0 if UNTIL_2027_RE.search(line) else 1
+        if len(nums) == 1 or len(cols) == 1:
+            pairs = [(c, nums[0]) for c in cols]
+        else:
+            pairs = list(zip(cols, nums))
+        for ctype, value in pairs:
+            keep((ctype, kind), priority, value)
+    return {k: v for k, (_, v) in best.items()}
+
+
 def detect_basis(lines: list[str], priced: list[PricedLine], forced: str) -> str:
     if forced != "auto":
         return forced
@@ -182,6 +243,7 @@ def parse_tariffs(html: str, source: config.SupplierSource) -> list[TariffRecord
     lines = html_to_lines(html, source.scope_selector)
     priced = extract_priced_lines(lines)
     basis = detect_basis(lines, priced, source.price_basis)
+    feed_in = extract_feed_in(lines, source)
 
     # value[(ctype, energy, component)] = price ; first match wins
     values: dict[tuple[str, str, str], float] = {}
@@ -224,6 +286,8 @@ def parse_tariffs(html: str, source: config.SupplierSource) -> list[TariffRecord
                 gas_price=gas,
                 fixed_fee_elec_month=values.get((ctype, "elec", "fixed_fee")),
                 fixed_fee_gas_month=values.get((ctype, "gas", "fixed_fee")),
+                feed_in_cost_per_kwh=feed_in.get((ctype, "cost")),
+                feed_in_compensation_per_kwh=feed_in.get((ctype, "comp")),
                 contract_length_months=CONTRACT_MONTHS.get(ctype),
                 price_basis_detected=basis,
                 source_url=source.url,

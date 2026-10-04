@@ -53,6 +53,7 @@ export interface MarketOffer {
   feedInCompensation: number; // €/kWh
   // Set only for scraped offers
   fixedFeeMonth?: number | undefined; // € per month, elec + gas
+  feedInKnown?: boolean | undefined; // false = supplier page listed no feed-in rates
   sourceUrl?: string | undefined;
   scrapedAt?: string | undefined; // ISO timestamp
   isStale?: boolean | undefined; // last good scrape is older than 14 days

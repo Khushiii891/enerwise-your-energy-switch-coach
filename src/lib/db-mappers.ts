@@ -63,8 +63,8 @@ const SCRAPED_CONTRACT_LABEL: Record<string, string> = {
 
 /**
  * A scraped row from the current_tariffs view (written by enerwise-scraper).
- * Prices include energy tax + VAT, excl. network costs. The scraper doesn't
- * collect feed-in rates or numeric promos, so those are 0.
+ * Prices include energy tax + VAT, excl. network costs. Feed-in rates are 0
+ * (and hidden on the card) when the supplier page didn't list them.
  */
 export function scrapedOfferFromRow(r: V["current_tariffs"]["Row"]): MarketOffer | null {
   if (!r.supplier || r.kwh_price == null || r.gas_price == null) return null;
@@ -76,8 +76,9 @@ export function scrapedOfferFromRow(r: V["current_tariffs"]["Row"]): MarketOffer
     contractLength: r.contract_length_months ?? 0,
     promo: 0,
     tariffType: ctype === "variable" ? "variable" : "fixed",
-    feedInCost: 0,
-    feedInCompensation: 0,
+    feedInCost: Number(r.feed_in_cost_per_kwh ?? 0),
+    feedInCompensation: Number(r.feed_in_compensation_per_kwh ?? 0),
+    feedInKnown: r.feed_in_cost_per_kwh != null || r.feed_in_compensation_per_kwh != null,
     fixedFeeMonth:
       r.fixed_fee_elec_month == null && r.fixed_fee_gas_month == null
         ? undefined

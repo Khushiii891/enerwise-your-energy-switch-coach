@@ -247,6 +247,8 @@ export type Database = {
           contract_type: string
           fixed_fee_elec_month: number | null
           fixed_fee_gas_month: number | null
+          feed_in_compensation_per_kwh: number | null
+          feed_in_cost_per_kwh: number | null
           gas_price: number | null
           id: number
           issues: string | null
@@ -265,6 +267,8 @@ export type Database = {
           contract_type: string
           fixed_fee_elec_month?: number | null
           fixed_fee_gas_month?: number | null
+          feed_in_compensation_per_kwh?: number | null
+          feed_in_cost_per_kwh?: number | null
           gas_price?: number | null
           id?: never
           issues?: string | null
@@ -283,6 +287,8 @@ export type Database = {
           contract_type?: string
           fixed_fee_elec_month?: number | null
           fixed_fee_gas_month?: number | null
+          feed_in_compensation_per_kwh?: number | null
+          feed_in_cost_per_kwh?: number | null
           gas_price?: number | null
           id?: never
           issues?: string | null
@@ -411,6 +417,8 @@ export type Database = {
           contract_type: string | null
           fixed_fee_elec_month: number | null
           fixed_fee_gas_month: number | null
+          feed_in_compensation_per_kwh: number | null
+          feed_in_cost_per_kwh: number | null
           gas_price: number | null
           is_stale: boolean | null
           kwh_price: number | null

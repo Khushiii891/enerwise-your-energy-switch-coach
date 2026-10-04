@@ -18,6 +18,8 @@ class TariffRecord:
     gas_price: float | None            # EUR/m3  incl. energy tax + VAT
     fixed_fee_elec_month: float | None = None
     fixed_fee_gas_month: float | None = None
+    feed_in_cost_per_kwh: float | None = None          # terugleverkosten, EUR/kWh
+    feed_in_compensation_per_kwh: float | None = None  # terugleververgoeding, EUR/kWh
     contract_length_months: int | None = None
     promo: str | None = None
     price_basis_detected: str = "unknown"   # incl_tax | supply_only

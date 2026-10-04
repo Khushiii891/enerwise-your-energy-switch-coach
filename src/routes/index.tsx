@@ -271,7 +271,7 @@ function SupplierCard({
                 {offer.isStale && " · Price may be out of date"}
               </p>
             )}
-            {!offer.scrapedAt && offer.feedInCost === 0 && (
+            {(!offer.scrapedAt || offer.feedInKnown) && offer.feedInCost === 0 && (
               <Badge variant="outline" className="mt-2 border-success/40 text-success">Solar-friendly</Badge>
             )}
           </div>
@@ -307,7 +307,7 @@ function SupplierCard({
         <div className="space-y-1.5 text-xs text-muted-foreground">
           <Row label="Electricity" value={`€ ${offer.kwhPrice.toFixed(3)}/kWh`} />
           <Row label="Gas" value={`€ ${offer.gasPrice.toFixed(2)}/m³`} />
-          {!offer.scrapedAt && (
+          {(!offer.scrapedAt || offer.feedInKnown) && (
             <>
               <Row
                 label="Feed-in costs"
