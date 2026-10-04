@@ -16,6 +16,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ContractRouteImport } from './routes/contract'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as UsageRouteImport } from './routes/usage'
+import { Route as ApiIngestTariffsRouteImport } from './routes/api/ingest-tariffs'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -52,6 +53,11 @@ const UsageRoute = UsageRouteImport.update({
   path: '/usage',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiIngestTariffsRoute = ApiIngestTariffsRouteImport.update({
+  id: '/api/ingest-tariffs',
+  path: '/api/ingest-tariffs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -61,6 +67,7 @@ export interface FileRoutesByFullPath {
   '/contract': typeof ContractRoute
   '/settings': typeof SettingsRoute
   '/usage': typeof UsageRoute
+  '/api/ingest-tariffs': typeof ApiIngestTariffsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -70,6 +77,7 @@ export interface FileRoutesByTo {
   '/contract': typeof ContractRoute
   '/settings': typeof SettingsRoute
   '/usage': typeof UsageRoute
+  '/api/ingest-tariffs': typeof ApiIngestTariffsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -80,14 +88,29 @@ export interface FileRoutesById {
   '/contract': typeof ContractRoute
   '/settings': typeof SettingsRoute
   '/usage': typeof UsageRoute
+  '/api/ingest-tariffs': typeof ApiIngestTariffsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/account' | '/admin' | '/auth' | '/contract' | '/settings' | '/usage'
+    | '/'
+    | '/account'
+    | '/admin'
+    | '/auth'
+    | '/contract'
+    | '/settings'
+    | '/usage'
+    | '/api/ingest-tariffs'
   fileRoutesByTo: FileRoutesByTo
   to:
-    '/' | '/account' | '/admin' | '/auth' | '/contract' | '/settings' | '/usage'
+    | '/'
+    | '/account'
+    | '/admin'
+    | '/auth'
+    | '/contract'
+    | '/settings'
+    | '/usage'
+    | '/api/ingest-tariffs'
   id:
     | '__root__'
     | '/'
@@ -97,6 +120,7 @@ export interface FileRouteTypes {
     | '/contract'
     | '/settings'
     | '/usage'
+    | '/api/ingest-tariffs'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -107,6 +131,7 @@ export interface RootRouteChildren {
   ContractRoute: typeof ContractRoute
   SettingsRoute: typeof SettingsRoute
   UsageRoute: typeof UsageRoute
+  ApiIngestTariffsRoute: typeof ApiIngestTariffsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -160,6 +185,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UsageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/ingest-tariffs': {
+      id: '/api/ingest-tariffs'
+      path: '/api/ingest-tariffs'
+      fullPath: '/api/ingest-tariffs'
+      preLoaderRoute: typeof ApiIngestTariffsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -171,6 +203,7 @@ const rootRouteChildren: RootRouteChildren = {
   ContractRoute: ContractRoute,
   SettingsRoute: SettingsRoute,
   UsageRoute: UsageRoute,
+  ApiIngestTariffsRoute: ApiIngestTariffsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

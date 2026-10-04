@@ -34,11 +34,14 @@ jobs:
 
       - name: Scrape suppliers and write to Supabase
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Lovable Cloud doesn't expose the service-role key, so results go to the
+          # app's /api/ingest-tariffs endpoint, which writes them to the database.
+          ENERWISE_INGEST_URL: ${{ secrets.ENERWISE_INGEST_URL }}
+          SCRAPER_INGEST_SECRET: ${{ secrets.SCRAPER_INGEST_SECRET }}
           # Real household address for Essent/Vattenfall (prices are national)
           REFERENCE_POSTCODE: ${{ secrets.REFERENCE_POSTCODE }}
           REFERENCE_HOUSE_NUMBER: ${{ secrets.REFERENCE_HOUSE_NUMBER }}
+          REFERENCE_HOUSE_NUMBER_ADDITION: ${{ secrets.REFERENCE_HOUSE_NUMBER_ADDITION }}
           SAVE_DEBUG_HTML: "1"
         run: python -m enerwise_scraper.run --min-success 3
 

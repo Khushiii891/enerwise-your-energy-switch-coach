@@ -72,6 +72,52 @@ class SupabaseStore(Store):
         r.raise_for_status()
 
 
+class IngestStore(Store):
+    """Sends results to the app's /api/ingest-tariffs endpoint.
+
+    For Lovable Cloud, which doesn't expose the service-role key: the app's
+    server writes to Supabase on our behalf. Needs ENERWISE_INGEST_URL
+    (e.g. https://your-app.lovable.app/api/ingest-tariffs) and
+    SCRAPER_INGEST_SECRET (same value as the app's secret).
+    """
+
+    def __init__(self, url: str | None = None, secret: str | None = None):
+        self.url = url or os.environ["ENERWISE_INGEST_URL"]
+        secret = secret or os.environ["SCRAPER_INGEST_SECRET"]
+        self.headers = {"Authorization": f"Bearer {secret}", "Content-Type": "application/json"}
+        self._current: list[dict] | None = None
+
+    def latest(self, supplier: str, contract_type: str) -> dict | None:
+        if self._current is None:  # one GET per run
+            r = requests.get(self.url, headers=self.headers, timeout=30)
+            r.raise_for_status()
+            self._current = r.json()
+        for row in self._current:
+            if row["supplier"] == supplier and row["contract_type"] == contract_type:
+                return row
+        return None
+
+    def _post(self, body: dict) -> None:
+        r = requests.post(self.url, headers=self.headers, data=json.dumps(body), timeout=30)
+        if r.status_code >= 400:
+            raise RuntimeError(f"ingest endpoint returned {r.status_code}: {r.text[:300]}")
+
+    def save_records(self, records: list[TariffRecord]) -> None:
+        if records:
+            self._post({"snapshots": [rec.to_row() for rec in records]})
+
+    def save_run(self, run_id: str, result: RunResult) -> None:
+        self._post({"runs": [{
+            "run_id": run_id,
+            "supplier": result.supplier,
+            "ok": result.ok,
+            "records_found": len(result.records),
+            "records_published": sum(r.status == "ok" for r in result.records),
+            "error": result.error,
+            "duration_s": round(result.duration_s, 2),
+        }]})
+
+
 class LocalStore(Store):
     """Dry-run store: writes JSON into ./out so you can inspect results."""
 

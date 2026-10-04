@@ -23,9 +23,15 @@ and the database schema is the migration
 
 1. **Database.** Make sure that migration has been applied to Lovable Cloud
    (ask Lovable to run it, or paste it into the SQL editor).
-2. **Secrets.** GitHub repo → Settings → Secrets and variables → Actions → add
-   `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (Supabase → Project Settings → API).
-   The service-role key can write everything: never paste it into Lovable.
+2. **Secrets.** Lovable Cloud doesn't expose the service-role key, so the
+   scraper sends results to the app's `/api/ingest-tariffs` endpoint
+   (`src/routes/api/ingest-tariffs.ts`), which writes them to the database.
+   - Lovable: add secret `SCRAPER_INGEST_SECRET` (32+ random characters).
+   - GitHub → Settings → Secrets and variables → Actions: add
+     `SCRAPER_INGEST_SECRET` (same value), `ENERWISE_INGEST_URL`
+     (`https://<your-app>/api/ingest-tariffs`), and `REFERENCE_POSTCODE`,
+     `REFERENCE_HOUSE_NUMBER`, `REFERENCE_HOUSE_NUMBER_ADDITION` (Essent only
+     shows prices for a real household address; prices are national).
 3. **First run.** Repo → Actions → "Weekly tariff scrape" → Run workflow.
    Check the log: each supplier prints `[ok]`, `[needs_review]` or `[FAILED]`.
 4. **App.** Nothing to do: the app reads `current_tariffs` (see `loadOffers` in

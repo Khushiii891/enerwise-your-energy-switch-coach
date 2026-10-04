@@ -18,7 +18,7 @@ from . import config
 from .fetch import fetch_html
 from .models import RunResult
 from .parse import parse_tariffs
-from .store import LocalStore, Store, SupabaseStore
+from .store import IngestStore, LocalStore, Store, SupabaseStore
 from .validate import validate
 
 
@@ -64,7 +64,12 @@ def main(argv: list[str] | None = None) -> int:
                     help="exit non-zero if fewer suppliers succeed (alerts via GitHub Actions)")
     args = ap.parse_args(argv)
 
-    store: Store = LocalStore() if args.dry_run else SupabaseStore()
+    if args.dry_run:
+        store: Store = LocalStore()
+    elif os.getenv("ENERWISE_INGEST_URL"):
+        store = IngestStore()          # Lovable Cloud: app endpoint writes for us
+    else:
+        store = SupabaseStore()        # direct, needs SUPABASE_SERVICE_ROLE_KEY
     sources = [config.get_supplier(s) for s in args.supplier] if args.supplier else [s for s in config.SUPPLIERS if s.enabled]
 
     files = dict(item.split("=", 1) for item in args.from_file)
