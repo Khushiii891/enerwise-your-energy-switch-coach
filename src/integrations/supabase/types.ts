@@ -193,6 +193,7 @@ export type Database = {
           created_at: string
           current_supplier: string | null
           decision: string
+          fallback_reason: string | null
           id: string
           input_hash: string | null
           lang: string
@@ -207,6 +208,7 @@ export type Database = {
           created_at?: string
           current_supplier?: string | null
           decision: string
+          fallback_reason?: string | null
           id?: string
           input_hash?: string | null
           lang?: string
@@ -221,6 +223,7 @@ export type Database = {
           created_at?: string
           current_supplier?: string | null
           decision?: string
+          fallback_reason?: string | null
           id?: string
           input_hash?: string | null
           lang?: string

@@ -1,0 +1,1 @@
+ALTER TABLE public.recommendations ADD COLUMN IF NOT EXISTS fallback_reason text;
