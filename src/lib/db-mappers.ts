@@ -1,3 +1,4 @@
+import type { Orientation, Shading } from "./solarEstimate";
 import type { Database } from "@/integrations/supabase/types";
 import type { Contract, ControlSettings, MarketOffer, PlannedSwitch, TariffType, Usage } from "./types";
 
@@ -24,6 +25,16 @@ export function usageFromRow(r: T["usage"]["Row"]): Usage {
     hasSolar: !!r.has_solar,
     annualGridImport: Number(r.annual_grid_import ?? 0),
     annualFeedIn: Number(r.annual_feed_in ?? 0),
+    estimate: r.estimate_used
+      ? {
+          panels: r.panel_count ?? 0,
+          wattage: r.panel_wattage ?? 400,
+          orientation: (r.orientation ?? "S") as Orientation,
+          shading: (r.shading ?? "none") as Shading,
+          hasBattery: !!r.has_battery,
+          totalUsage: Number(r.total_usage_kwh ?? 2700),
+        }
+      : null,
   };
 }
 

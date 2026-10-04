@@ -28,6 +28,16 @@ export interface Usage {
   hasSolar: boolean;
   annualGridImport: number; // kWh / year (solar only)
   annualFeedIn: number; // kWh / year (solar only)
+  estimate?: SolarEstimateInputs | null; // set when the panel helper was used
+}
+
+export interface SolarEstimateInputs {
+  panels: number;
+  wattage: number;
+  orientation: import("./solarEstimate").Orientation;
+  shading: import("./solarEstimate").Shading;
+  hasBattery: boolean;
+  totalUsage: number;
 }
 
 /** A live market offer from a supplier (mock data). */
