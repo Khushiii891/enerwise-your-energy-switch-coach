@@ -2,12 +2,12 @@ import { createServerFn } from "@tanstack/react-start";
 import { findUnknownNumbers } from "./numberCheck";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { buildRecommendation, pickAutoSwitch } from "./calc";
+import { buildRecommendation, formatDateLong, hasContractEnded, pickAutoSwitch } from "./calc";
 import { contractFromRow, controlFromRow, loadOffers, usageFromRow } from "./db-mappers";
 import { DEFAULT_CONTROL } from "./market-data";
 import type { Contract, ControlSettings, MarketOffer, Recommendation, Usage } from "./types";
 
-export const PROMPT_VERSION = "v3";
+export const PROMPT_VERSION = "v4";
 export const MODEL = "anthropic/claude-haiku-4-5";
 
 const SYSTEM_PROMPT = `You are Enerwise, a calm, neutral advisor for Dutch households deciding
@@ -32,6 +32,11 @@ You receive pre-calculated data. Rules:
   "auto" but no planned_switch is present, say which condition is not met.
 - Never favor a supplier beyond what the numbers show. No hype, no urgency
   tactics. The user always decides and switches themselves.
+- Dates: write them exactly as given in contract_end_date_display; never
+  reformat them.
+- If contract_status is "ended", the contract has already ended: say it
+  ended on contract_end_date_display and that there is no exit fee. Never
+  describe an ended contract as still running.
 - Reply in the language given in "lang" (default English; "nl" = Dutch).
 
 Output JSON only, no markdown:
@@ -150,6 +155,12 @@ export function buildPayload(contract: Contract, usage: Usage, control: ControlS
         price_per_kwh_eur: contract.pricePerKwh,
         price_per_m3_gas_eur: contract.pricePerGas,
         contract_end_date: contract.contractEndDate || null,
+        contract_end_date_display: contract.contractEndDate ? formatDateLong(contract.contractEndDate, lang) : null,
+        contract_status: !contract.contractEndDate
+          ? "no_end_date"
+          : hasContractEnded(contract.contractEndDate)
+            ? "ended"
+            : "running",
         exit_fee_eur: contract.exitFee,
         exit_fee_condition: contract.exitFeeCondition,
         ...(contract.fixedFeeMonth != null ? { fixed_fee_per_month_eur: contract.fixedFeeMonth } : {}),

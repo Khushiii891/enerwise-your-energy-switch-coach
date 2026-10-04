@@ -11,6 +11,6 @@
 
 - AI explanation runs in a server function (src/lib/rationale.functions.ts) via Lovable AI (anthropic/claude-haiku-4-5); numbers are always computed server-side by calc.ts, never by the model.
 - Household data lives in Lovable Cloud tables (contracts, usage, tariffs, recommendations, feedback); the app requires sign-in.
-- Batch recalculation (new tariff ingest, demo reset) lives in src/lib/recalc.server.ts and stores the static explanation (model "static"), never calling the LLM — keeps bulk runs free and deterministic.
+- Batch recalculation (new tariff ingest, demo reset) lives in src/lib/recalc.server.ts and stores the static explanation (model "static"), never calling the LLM; tariff-ingest reruns skip the insert when input_hash, best supplier, decision and net_savings match the latest row — keeps bulk runs free, deterministic and history clean.
 - Solar households exclude offers whose 2027 feed-in rates are NULL (Recommendation.unrated); NULL is never coerced to 0 — avoids fake feed-in costs.
 - Demo households are real auth users with deterministic UUIDv5 ids, listed in demo_households — lets admin tooling filter/reset them safely.
