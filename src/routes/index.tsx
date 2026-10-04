@@ -22,6 +22,7 @@ import { formatEuro, SWITCH_THRESHOLD } from "@/lib/calc";
 import { cn } from "@/lib/utils";
 import { AiRationale } from "@/components/AiRationale";
 import { PlannedSwitchCard } from "@/components/PlannedSwitchCard";
+import { SolarSection } from "@/components/SolarSection";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -55,6 +56,8 @@ function RecommendationPage() {
       <ContractSummary contract={contract} usage={usage} />
 
       <RecommendationBanner rec={recommendation} />
+
+      <SolarSection />
 
       <section className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between">
@@ -253,6 +256,9 @@ function SupplierCard({
               {offer.contractLength}-month {offer.tariffType} contract
               {offer.promo > 0 && ` · €${offer.promo}/mo promo`}
             </CardDescription>
+            {offer.feedInCost === 0 && (
+              <Badge variant="outline" className="mt-2 border-success/40 text-success">Solar-friendly</Badge>
+            )}
           </div>
           {highlight ? (
             <Badge className="bg-success text-success-foreground">Switch now</Badge>
