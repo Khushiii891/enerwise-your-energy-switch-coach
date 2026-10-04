@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { findUnknownNumbers } from "./numberCheck";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { buildRecommendation, pickAutoSwitch } from "./calc";
@@ -209,7 +210,16 @@ export const generateRationale = createServerFn({ method: "POST" })
     let out: { headline: string; rationale: string; caveat: string };
     let model = MODEL;
     try {
-      out = await callClaude(payload);
+      // Try twice; reject any explanation containing numbers not present in the input.
+      let attempt = await callClaude(payload);
+      let bad = findUnknownNumbers(`${attempt.headline} ${attempt.rationale} ${attempt.caveat}`, payload);
+      if (bad.length) {
+        console.warn("rationale rejected, invented numbers:", bad);
+        attempt = await callClaude(payload);
+        bad = findUnknownNumbers(`${attempt.headline} ${attempt.rationale} ${attempt.caveat}`, payload);
+        if (bad.length) throw new Error(`invented numbers: ${bad.join(", ")}`);
+      }
+      out = attempt;
     } catch (e) {
       console.error("rationale fallback:", e);
       model = "fallback";
