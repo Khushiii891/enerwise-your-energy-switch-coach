@@ -59,8 +59,9 @@ function AccountPage() {
       setBusy(false);
       return toast.error("Your current password is incorrect.");
     }
-    const { error } = await supabase.auth.updateUser({ password: next });
+    const { error } = await supabase.auth.updateUser({ password: next, current_password: current });
     setBusy(false);
+    if (error) console.error("password change failed", error.message);
     if (error) return toast.error(error.message.includes("weak") || error.message.includes("pwned")
       ? "This password is too common or has appeared in a data leak. Choose another."
       : "Couldn't change your password. Please try again.");
