@@ -1,0 +1,46 @@
+name: Weekly tariff scrape
+
+on:
+  schedule:
+    # Every Monday 05:17 UTC (07:17 Amsterdam summer time). Odd minute avoids the
+    # top-of-hour queue on GitHub's shared runners.
+    - cron: "17 5 * * 1"
+  workflow_dispatch: {}   # "Run workflow" button for manual runs
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Run tests
+        run: pytest -q
+
+      - name: Scrape suppliers and write to Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SAVE_DEBUG_HTML: "1"
+        run: python -m enerwise_scraper.run --min-success 3
+
+      # Keep rendered pages + screenshots for 14 days: when a supplier breaks,
+      # download these to see what the page looked like.
+      - name: Upload debug pages
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-pages
+          path: debug/
+          retention-days: 14
+          if-no-files-found: ignore
