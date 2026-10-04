@@ -55,7 +55,7 @@ export function SolarSection() {
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                 <XAxis dataKey="supplier" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} interval={0} />
                 <YAxis tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} tickFormatter={(v) => `€${v}`} />
-                <Tooltip
+                <Tooltip cursor={{ fill: "var(--muted)", opacity: 0.4 }}
                   formatter={(v: number) => [v > 0 ? `You pay ${formatEuro(v)}` : `You earn ${formatEuro(-v)}`, "Net feed-in"]}
                   contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
                 />
