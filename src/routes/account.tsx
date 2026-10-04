@@ -5,7 +5,7 @@ import { Check, KeyRound, UserRound, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useEnerwise } from "@/store/enerwise";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/PasswordInput";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -24,10 +24,7 @@ export const Route = createFileRoute("/account")({
 });
 
 export const PASSWORD_RULES = [
-  { label: "At least 10 characters", test: (p: string) => p.length >= 10 },
-  { label: "An uppercase and a lowercase letter", test: (p: string) => /[A-Z]/.test(p) && /[a-z]/.test(p) },
-  { label: "A number", test: (p: string) => /\d/.test(p) },
-  { label: "A symbol", test: (p: string) => /[^A-Za-z0-9]/.test(p) },
+  { label: "At least 8 characters", test: (p: string) => p.length >= 8 },
 ];
 
 function fmt(d?: string | null) {
@@ -97,11 +94,11 @@ function AccountPage() {
             <p className="flex items-center gap-2 text-sm font-semibold text-foreground"><KeyRound className="h-4 w-4" /> Change password</p>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="current">Current password</Label>
-              <Input id="current" type="password" autoComplete="current-password" required value={current} onChange={(e) => setCurrent(e.target.value)} />
+              <PasswordInput id="current" autoComplete="current-password" required value={current} onChange={(e) => setCurrent(e.target.value)} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="new">New password</Label>
-              <Input id="new" type="password" autoComplete="new-password" required value={next} onChange={(e) => setNext(e.target.value)} />
+              <PasswordInput id="new" autoComplete="new-password" required value={next} onChange={(e) => setNext(e.target.value)} />
               <ul className="mt-1 flex flex-col gap-1 text-xs">
                 {PASSWORD_RULES.map((r) => {
                   const ok = r.test(next);
@@ -115,7 +112,7 @@ function AccountPage() {
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="confirm">Confirm new password</Label>
-              <Input id="confirm" type="password" autoComplete="new-password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+              <PasswordInput id="confirm" autoComplete="new-password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} />
               {confirm && !matches && <p className="text-xs text-destructive">Passwords don't match.</p>}
             </div>
             <Button type="submit" disabled={busy || !rulesOk || !matches || !current}>
