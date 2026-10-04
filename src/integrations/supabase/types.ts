@@ -242,27 +242,48 @@ export type Database = {
         Row: {
           annual_feed_in: number
           annual_grid_import: number
+          estimate_used: boolean
+          has_battery: boolean | null
           has_solar: boolean
           monthly_electricity: number
           monthly_gas: number
+          orientation: string | null
+          panel_count: number | null
+          panel_wattage: number | null
+          shading: string | null
+          total_usage_kwh: number | null
           updated_at: string
           user_id: string
         }
         Insert: {
           annual_feed_in?: number
           annual_grid_import?: number
+          estimate_used?: boolean
+          has_battery?: boolean | null
           has_solar?: boolean
           monthly_electricity: number
           monthly_gas: number
+          orientation?: string | null
+          panel_count?: number | null
+          panel_wattage?: number | null
+          shading?: string | null
+          total_usage_kwh?: number | null
           updated_at?: string
           user_id: string
         }
         Update: {
           annual_feed_in?: number
           annual_grid_import?: number
+          estimate_used?: boolean
+          has_battery?: boolean | null
           has_solar?: boolean
           monthly_electricity?: number
           monthly_gas?: number
+          orientation?: string | null
+          panel_count?: number | null
+          panel_wattage?: number | null
+          shading?: string | null
+          total_usage_kwh?: number | null
           updated_at?: string
           user_id?: string
         }
