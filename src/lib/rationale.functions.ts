@@ -5,7 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { buildRecommendation, pickAutoSwitch } from "./calc";
 import { contractFromRow, controlFromRow, loadOffers, usageFromRow } from "./db-mappers";
 import { DEFAULT_CONTROL } from "./market-data";
-import type { Contract, MarketOffer, Usage } from "./types";
+import type { Contract, ControlSettings, MarketOffer, Recommendation, Usage } from "./types";
 
 export const PROMPT_VERSION = "v3";
 export const MODEL = "anthropic/claude-haiku-4-5";
@@ -107,25 +107,7 @@ async function callClaude(payload: unknown): Promise<{ headline: string; rationa
   };
 }
 
-export const generateRationale = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ lang: z.enum(["en", "nl"]), force: z.boolean() }).parse(d))
-  .handler(async ({ data, context }): Promise<RationaleResult> => {
-    const { supabase, userId } = context;
-    const [c, u, t, cs] = await Promise.all([
-      supabase.from("contracts").select("*").eq("user_id", userId).maybeSingle(),
-      supabase.from("usage").select("*").eq("user_id", userId).maybeSingle(),
-      loadOffers(supabase),
-      supabase.from("control_settings").select("*").eq("user_id", userId).maybeSingle(),
-    ]);
-    const control = cs.data ? controlFromRow(cs.data) : DEFAULT_CONTROL;
-    // Never explain placeholder numbers: the user's own contract, usage and live offers are required.
-    if (!c.data || !u.data) throw new Error("Save your contract and usage first.");
-    if (!t.length) throw new Error("Live tariffs are not available right now.");
-    const contract: Contract = contractFromRow(c.data);
-    const usage: Usage = usageFromRow(u.data);
-    const offers: MarketOffer[] = t;
-
+export function buildPayload(contract: Contract, usage: Usage, control: ControlSettings, offers: MarketOffer[], lang: "en" | "nl") {
     const rec = buildRecommendation(contract, usage, offers);
     const decision = rec.shouldSwitch ? "switch_now" : "wait";
     const end = contract.contractEndDate ? new Date(contract.contractEndDate) : null;
@@ -134,7 +116,7 @@ export const generateRationale = createServerFn({ method: "POST" })
     const auto = control.mode === "auto" ? pickAutoSwitch(rec, control) : null;
 
     const payload = {
-      lang: data.lang,
+      lang,
       decision,
       switch_threshold_eur: rec.threshold,
       control_mode: control.mode,
@@ -152,6 +134,9 @@ export const generateRationale = createServerFn({ method: "POST" })
           }
         : {}),
       has_solar: solar,
+      ...(solar && rec.unrated.length
+        ? { offers_left_out_no_2027_feed_in_rates: rec.unrated.map((o) => o.supplier) }
+        : {}),
       ...(solar
         ? {
             annual_grid_import_kwh: usage.annualGridImport,
@@ -193,25 +178,10 @@ export const generateRationale = createServerFn({ method: "POST" })
         ...(r.offer.scrapedAt ? { prices_checked_on: r.offer.scrapedAt.slice(0, 10) } : {}),
       })),
     };
-    const hash = JSON.stringify(payload);
+    return { rec, decision, payload };
+}
 
-    if (!data.force) {
-      const { data: cached } = await supabase
-        .from("recommendations")
-        .select("*")
-        .eq("user_id", userId)
-        .eq("input_hash", hash)
-        .eq("prompt_version", PROMPT_VERSION)
-        .neq("model", "fallback")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (cached) {
-        const rt = cached.rationale_text as { headline: string; rationale: string; caveat: string };
-        return { id: cached.id, ...rt, model: cached.model, promptVersion: cached.prompt_version, isFallback: false };
-      }
-    }
-
+export async function explainWithAI(payload: unknown, rec: Recommendation) {
     let out: { headline: string; rationale: string; caveat: string };
     let model = MODEL;
     try {
@@ -236,6 +206,58 @@ export const generateRationale = createServerFn({ method: "POST" })
         caveat: "",
       };
     }
+
+    return { out, model };
+}
+
+export function staticExplanation(rec: Recommendation) {
+  return {
+    headline: rec.shouldSwitch ? "Now looks like a good time to switch" : "Your current contract still wins — for now",
+    rationale: rec.summary,
+    caveat: "",
+  };
+}
+
+export const generateRationale = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ lang: z.enum(["en", "nl"]), force: z.boolean() }).parse(d))
+  .handler(async ({ data, context }): Promise<RationaleResult> => {
+    const { supabase, userId } = context;
+    const [c, u, t, cs] = await Promise.all([
+      supabase.from("contracts").select("*").eq("user_id", userId).maybeSingle(),
+      supabase.from("usage").select("*").eq("user_id", userId).maybeSingle(),
+      loadOffers(supabase),
+      supabase.from("control_settings").select("*").eq("user_id", userId).maybeSingle(),
+    ]);
+    const control = cs.data ? controlFromRow(cs.data) : DEFAULT_CONTROL;
+    // Never explain placeholder numbers: the user's own contract, usage and live offers are required.
+    if (!c.data || !u.data) throw new Error("Save your contract and usage first.");
+    if (!t.length) throw new Error("Live tariffs are not available right now.");
+    const contract: Contract = contractFromRow(c.data);
+    const usage: Usage = usageFromRow(u.data);
+    const offers: MarketOffer[] = t;
+
+    const { rec, decision, payload } = buildPayload(contract, usage, control, offers, data.lang);
+    const hash = JSON.stringify(payload);
+
+    if (!data.force) {
+      const { data: cached } = await supabase
+        .from("recommendations")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("input_hash", hash)
+        .eq("prompt_version", PROMPT_VERSION)
+        .neq("model", "fallback")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (cached) {
+        const rt = cached.rationale_text as { headline: string; rationale: string; caveat: string };
+        return { id: cached.id, ...rt, model: cached.model, promptVersion: cached.prompt_version, isFallback: false };
+      }
+    }
+
+    const { out, model } = await explainWithAI(payload, rec);
 
     const { data: saved, error } = await supabase
       .from("recommendations")
