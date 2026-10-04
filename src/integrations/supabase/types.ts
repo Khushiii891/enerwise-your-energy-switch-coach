@@ -248,8 +248,6 @@ export type Database = {
           feed_in_compensation_per_kwh: number | null
           feed_in_cost_per_kwh: number | null
           feed_in_period: string | null
-          price_note: string | null
-          valid_from: string | null
           fixed_fee_elec_month: number | null
           fixed_fee_gas_month: number | null
           gas_price: number | null
@@ -258,12 +256,14 @@ export type Database = {
           kwh_price: number | null
           method: string | null
           price_basis_detected: string | null
+          price_note: string | null
           promo: string | null
           raw_excerpt: string | null
           scraped_at: string
           source_url: string
           status: string
           supplier: string
+          valid_from: string | null
         }
         Insert: {
           contract_length_months?: number | null
@@ -271,8 +271,6 @@ export type Database = {
           feed_in_compensation_per_kwh?: number | null
           feed_in_cost_per_kwh?: number | null
           feed_in_period?: string | null
-          price_note?: string | null
-          valid_from?: string | null
           fixed_fee_elec_month?: number | null
           fixed_fee_gas_month?: number | null
           gas_price?: number | null
@@ -281,12 +279,14 @@ export type Database = {
           kwh_price?: number | null
           method?: string | null
           price_basis_detected?: string | null
+          price_note?: string | null
           promo?: string | null
           raw_excerpt?: string | null
           scraped_at?: string
           source_url: string
           status: string
           supplier: string
+          valid_from?: string | null
         }
         Update: {
           contract_length_months?: number | null
@@ -294,8 +294,6 @@ export type Database = {
           feed_in_compensation_per_kwh?: number | null
           feed_in_cost_per_kwh?: number | null
           feed_in_period?: string | null
-          price_note?: string | null
-          valid_from?: string | null
           fixed_fee_elec_month?: number | null
           fixed_fee_gas_month?: number | null
           gas_price?: number | null
@@ -304,12 +302,14 @@ export type Database = {
           kwh_price?: number | null
           method?: string | null
           price_basis_detected?: string | null
+          price_note?: string | null
           promo?: string | null
           raw_excerpt?: string | null
           scraped_at?: string
           source_url?: string
           status?: string
           supplier?: string
+          valid_from?: string | null
         }
         Relationships: []
       }
@@ -427,17 +427,17 @@ export type Database = {
           feed_in_compensation_per_kwh: number | null
           feed_in_cost_per_kwh: number | null
           feed_in_period: string | null
-          price_note: string | null
-          valid_from: string | null
           fixed_fee_elec_month: number | null
           fixed_fee_gas_month: number | null
           gas_price: number | null
           is_stale: boolean | null
           kwh_price: number | null
+          price_note: string | null
           promo: string | null
           scraped_at: string | null
           source_url: string | null
           supplier: string | null
+          valid_from: string | null
         }
         Relationships: []
       }
