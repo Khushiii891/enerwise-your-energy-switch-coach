@@ -7,7 +7,7 @@ import { contractFromRow, controlFromRow, loadOffers, usageFromRow } from "./db-
 import { DEFAULT_CONTROL } from "./market-data";
 import type { Contract, ControlSettings, MarketOffer, Recommendation, Usage } from "./types";
 
-export const PROMPT_VERSION = "v4";
+export const PROMPT_VERSION = "v5";
 export const MODEL = "anthropic/claude-haiku-4-5";
 
 const SYSTEM_PROMPT = `You are Enerwise, a calm, neutral advisor for Dutch households deciding
@@ -37,6 +37,9 @@ You receive pre-calculated data. Rules:
 - If contract_status is "ended", the contract has already ended: say it
   ended on contract_end_date_display and that there is no exit fee. Never
   describe an ended contract as still running.
+- Each candidate has gross_savings_eur (before exit fee), exit_fee_counted_eur
+  and net_savings_eur. If net savings are negative, use more_expensive_by_eur
+  for "€X more expensive" — never subtract or negate numbers yourself.
 - Reply in the language given in "lang" (default English; "nl" = Dutch).
 
 Output JSON only, no markdown:
@@ -185,7 +188,10 @@ export function buildPayload(contract: Contract, usage: Usage, control: ControlS
         feed_in_compensation_per_kwh_eur: r.offer.feedInCompensation,
         ...(r.fixedFeesCounted ? { fixed_fee_per_month_eur: r2(r.offer.fixedFeeMonth ?? 0) } : {}),
         annual_cost_eur: r2(r.annualCostCandidate),
+        gross_savings_eur: r2(r.annualCostCurrent - r.annualCostCandidate),
+        exit_fee_counted_eur: rec.exitFeeApplies ? r2(contract.exitFee) : 0,
         net_savings_eur: r2(r.netSavings),
+        ...(r.netSavings < 0 ? { more_expensive_by_eur: r2(-r.netSavings) } : {}),
         ...(r.offer.scrapedAt ? { prices_checked_on: r.offer.scrapedAt.slice(0, 10) } : {}),
       })),
     };
@@ -195,30 +201,35 @@ export function buildPayload(contract: Contract, usage: Usage, control: ControlS
 export async function explainWithAI(payload: unknown, rec: Recommendation) {
     let out: { headline: string; rationale: string; caveat: string };
     let model = MODEL;
+    let fallbackReason: string | null = null;
+    const reasons: string[] = [];
     try {
       // Try twice; reject any explanation containing numbers not present in the input.
-      let attempt = await callClaude(payload);
-      let bad = findUnknownNumbers(`${attempt.headline} ${attempt.rationale} ${attempt.caveat}`, payload);
-      if (bad.length) {
+      for (let i = 0; i < 2; i++) {
+        let attempt;
+        try {
+          attempt = await callClaude(payload);
+        } catch (e) {
+          reasons.push(`attempt ${i + 1}: API error (${e instanceof Error ? e.message : String(e)})`);
+          continue;
+        }
+        const bad = findUnknownNumbers(`${attempt.headline} ${attempt.rationale} ${attempt.caveat}`, payload);
+        if (!bad.length) {
+          out = attempt;
+          return { out, model, fallbackReason };
+        }
+        reasons.push(`attempt ${i + 1}: number check failed (${bad.join(", ")})`);
         console.warn("rationale rejected, invented numbers:", bad);
-        attempt = await callClaude(payload);
-        bad = findUnknownNumbers(`${attempt.headline} ${attempt.rationale} ${attempt.caveat}`, payload);
-        if (bad.length) throw new Error(`invented numbers: ${bad.join(", ")}`);
       }
-      out = attempt;
+      throw new Error(reasons.join("; "));
     } catch (e) {
-      console.error("rationale fallback:", e);
+      fallbackReason = e instanceof Error ? e.message : String(e);
+      console.error("rationale fallback:", fallbackReason);
       model = "fallback";
-      out = {
-        headline: rec.shouldSwitch
-          ? "Now looks like a good time to switch"
-          : "Your current contract still wins — for now",
-        rationale: rec.summary,
-        caveat: "",
-      };
+      out = staticExplanation(rec);
     }
 
-    return { out, model };
+    return { out, model, fallbackReason };
 }
 
 export function staticExplanation(rec: Recommendation) {
@@ -268,7 +279,7 @@ export const generateRationale = createServerFn({ method: "POST" })
       }
     }
 
-    const { out, model } = await explainWithAI(payload, rec);
+    const { out, model, fallbackReason } = await explainWithAI(payload, rec);
 
     const { data: saved, error } = await supabase
       .from("recommendations")
@@ -283,6 +294,7 @@ export const generateRationale = createServerFn({ method: "POST" })
         prompt_version: PROMPT_VERSION,
         lang: data.lang,
         input_hash: hash,
+        fallback_reason: fallbackReason,
       })
       .select("id")
       .single();

@@ -64,7 +64,7 @@ function toCsv(rows: AdminRow[], settings: AdminControlRow[], switches: AdminSwi
 function recCsv(rows: AdminRow[]): string {
   const header = [
     "created_at", "user_id", "is_demo", "customer_type", "current_supplier", "best_supplier", "net_savings", "decision",
-    "headline", "rationale", "caveat", "model", "prompt_version", "feedback_helpful", "feedback_comment",
+    "headline", "rationale", "caveat", "model", "fallback_reason", "prompt_version", "feedback_helpful", "feedback_comment",
   ];
   const lines = [header.join(",")];
   for (const r of rows) {
@@ -73,7 +73,7 @@ function recCsv(rows: AdminRow[]): string {
       lines.push(
         [
           r.created_at, r.user_id, r.is_demo, r.customer_type ?? "", r.current_supplier, r.best_supplier, r.net_savings, r.decision,
-          r.headline, r.rationale, r.caveat, r.model, r.prompt_version,
+          r.headline, r.rationale, r.caveat, r.model, r.fallback_reason ?? "", r.prompt_version,
           f ? f.helpful : "", f?.comment ?? "",
         ].map(csvCell).join(","),
       );
@@ -295,7 +295,10 @@ function AdminPage() {
                   <div className="font-semibold text-foreground">{r.headline}</div>
                   <div className="text-muted-foreground">{r.rationale}</div>
                 </td>
-                <td className="px-3 py-2 text-muted-foreground">{r.model}</td>
+                <td className="max-w-[220px] px-3 py-2 text-muted-foreground">
+                  {r.model}
+                  {r.fallback_reason && <div className="mt-1 text-[10px] text-destructive">Why: {r.fallback_reason}</div>}
+                </td>
                 <td className="px-3 py-2 text-muted-foreground">{r.prompt_version}</td>
                 <td className="px-3 py-2">
                   {r.feedback.length === 0 ? (
