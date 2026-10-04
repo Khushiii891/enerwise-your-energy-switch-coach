@@ -152,6 +152,13 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
         has_solar: next.hasSolar,
         annual_grid_import: next.annualGridImport,
         annual_feed_in: next.annualFeedIn,
+        estimate_used: !!(next.hasSolar && next.estimate),
+        panel_count: next.hasSolar ? next.estimate?.panels ?? null : null,
+        panel_wattage: next.hasSolar ? next.estimate?.wattage ?? null : null,
+        orientation: next.hasSolar ? next.estimate?.orientation ?? null : null,
+        shading: next.hasSolar ? next.estimate?.shading ?? null : null,
+        has_battery: next.hasSolar ? next.estimate?.hasBattery ?? null : null,
+        total_usage_kwh: next.hasSolar ? next.estimate?.totalUsage ?? null : null,
         updated_at: new Date().toISOString(),
       });
       if (error) throw error;

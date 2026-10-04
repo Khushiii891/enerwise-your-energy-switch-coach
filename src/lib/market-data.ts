@@ -22,8 +22,6 @@ export const DEFAULT_USAGE: Usage = {
   annualFeedIn: 0,
 };
 
-/** kWh fed back per panel per year, used by the "estimate from panels" helper. */
-export const DEFAULT_KWH_PER_PANEL = 300;
 
 /**
  * Six mock supplier tariff records. Prices vary slightly so some are cheaper

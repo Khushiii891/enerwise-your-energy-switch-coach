@@ -16,7 +16,17 @@ import { Button } from "@/components/ui/button";
 import { useEnerwise } from "@/store/enerwise";
 import type { Usage } from "@/lib/types";
 import { Switch } from "@/components/ui/switch";
-import { DEFAULT_KWH_PER_PANEL } from "@/lib/market-data";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { SolarEstimateInputs } from "@/lib/types";
+import {
+  DEFAULT_PANEL_WATTAGE,
+  DEFAULT_TOTAL_USAGE,
+  ORIENTATIONS,
+  SHADINGS,
+  estimateSolar,
+  type Orientation,
+  type Shading,
+} from "@/lib/solarEstimate";
 import { PageHeading, Field } from "./contract";
 
 export const Route = createFileRoute("/usage")({
@@ -156,10 +166,28 @@ function SolarFields({
   form: Usage;
   update: <K extends keyof Usage>(key: K, value: Usage[K]) => void;
 }) {
-  const [showHelper, setShowHelper] = useState(false);
-  const [panels, setPanels] = useState(10);
-  const [perPanel, setPerPanel] = useState(DEFAULT_KWH_PER_PANEL);
-  const estimate = Math.round(panels * perPanel);
+  const [showHelper, setShowHelper] = useState(!!form.estimate);
+  const [inp, setInp] = useState<SolarEstimateInputs>(
+    form.estimate ?? {
+      panels: 10,
+      wattage: DEFAULT_PANEL_WATTAGE,
+      orientation: "S",
+      shading: "none",
+      hasBattery: false,
+      totalUsage: DEFAULT_TOTAL_USAGE,
+    },
+  );
+  const est = estimateSolar(inp);
+  const set = <K extends keyof SolarEstimateInputs>(k: K, v: SolarEstimateInputs[K]) =>
+    setInp((p) => ({ ...p, [k]: v }));
+  const kwh = (n: number) => `${Math.round(n).toLocaleString("nl-NL")} kWh`;
+
+  function useEstimate() {
+    update("annualGridImport", Math.round(est.gridImportKwh));
+    update("annualFeedIn", Math.round(est.feedInKwh));
+    update("estimate", inp);
+    toast.success("Estimate filled in — you can still edit both numbers.");
+  }
 
   return (
     <div className="flex flex-col gap-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
@@ -168,69 +196,74 @@ function SolarFields({
       </p>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Annual grid import (kWh)" htmlFor="gridImport">
-          <Input
-            id="gridImport"
-            type="number"
-            step="1"
-            min="0"
-            inputMode="numeric"
+          <Input id="gridImport" type="number" step="1" min="0" inputMode="numeric"
             value={form.annualGridImport}
-            onChange={(e) => update("annualGridImport", parseFloat(e.target.value) || 0)}
-          />
+            onChange={(e) => update("annualGridImport", parseFloat(e.target.value) || 0)} />
         </Field>
         <Field label="Annual feed-in to the grid (kWh)" htmlFor="feedIn">
-          <Input
-            id="feedIn"
-            type="number"
-            step="1"
-            min="0"
-            inputMode="numeric"
+          <Input id="feedIn" type="number" step="1" min="0" inputMode="numeric"
             value={form.annualFeedIn}
-            onChange={(e) => update("annualFeedIn", parseFloat(e.target.value) || 0)}
-          />
+            onChange={(e) => update("annualFeedIn", parseFloat(e.target.value) || 0)} />
         </Field>
       </div>
 
       {showHelper ? (
         <div className="flex flex-col gap-3 rounded-md border border-border/70 bg-background p-3">
+          <p className="text-sm font-semibold text-foreground">Estimate from your panels</p>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Number of panels" htmlFor="panels">
-              <Input
-                id="panels"
-                type="number"
-                min="0"
-                step="1"
-                value={panels}
-                onChange={(e) => setPanels(parseFloat(e.target.value) || 0)}
-              />
+              <Input id="panels" type="number" min="0" step="1" value={inp.panels}
+                onChange={(e) => set("panels", parseFloat(e.target.value) || 0)} />
             </Field>
-            <Field label="Feed-in per panel (kWh / yr)" htmlFor="perPanel">
-              <Input
-                id="perPanel"
-                type="number"
-                min="0"
-                step="10"
-                value={perPanel}
-                onChange={(e) => setPerPanel(parseFloat(e.target.value) || 0)}
-              />
+            <Field label="Panel wattage (Wp)" htmlFor="wattage">
+              <Input id="wattage" type="number" min="0" step="10" value={inp.wattage}
+                onChange={(e) => set("wattage", parseFloat(e.target.value) || 0)} />
             </Field>
+            <Field label="Roof orientation" htmlFor="orientation">
+              <Select value={inp.orientation} onValueChange={(v) => set("orientation", v as Orientation)}>
+                <SelectTrigger id="orientation"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ORIENTATIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Shading" htmlFor="shading">
+              <Select value={inp.shading} onValueChange={(v) => set("shading", v as Shading)}>
+                <SelectTrigger id="shading"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {SHADINGS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Total yearly usage (kWh)" htmlFor="totalUsage">
+              <Input id="totalUsage" type="number" min="0" step="100" value={inp.totalUsage}
+                onChange={(e) => set("totalUsage", parseFloat(e.target.value) || 0)} />
+            </Field>
+            <div className="flex items-end gap-2 pb-2">
+              <Switch id="battery" checked={inp.hasBattery} onCheckedChange={(v) => set("hasBattery", v)} />
+              <Label htmlFor="battery" className="text-sm">Home battery</Label>
+            </div>
           </div>
-          <div className="flex items-center justify-between gap-2">
-            <span className="tabular text-sm text-muted-foreground">
-              ≈ {estimate.toLocaleString("nl-NL")} kWh feed-in / year
-            </span>
-            <Button type="button" size="sm" variant="secondary" onClick={() => update("annualFeedIn", estimate)}>
-              Use estimate
-            </Button>
+          <div className="rounded-md bg-muted/50 p-3">
+            <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              Estimate – your jaarafrekening is more accurate
+            </p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <Estimate label="System size" value={`${est.systemKwp.toLocaleString("nl-NL", { maximumFractionDigits: 2 })} kWp`} />
+              <Estimate label="Production" value={kwh(est.productionKwh)} />
+              <Estimate label="Self-consumed" value={kwh(est.selfConsumedKwh)} />
+              <Estimate label="Feed-in" value={kwh(est.feedInKwh)} />
+              <Estimate label="Grid import" value={kwh(est.gridImportKwh)} />
+            </div>
           </div>
+          <Button type="button" size="sm" variant="secondary" className="self-end" onClick={useEstimate}>
+            Use estimate
+          </Button>
         </div>
       ) : (
-        <button
-          type="button"
-          onClick={() => setShowHelper(true)}
-          className="self-start text-xs font-medium text-primary underline-offset-2 hover:underline"
-        >
-          Don't know? Estimate feed-in from number of panels
+        <button type="button" onClick={() => setShowHelper(true)}
+          className="self-start text-xs font-medium text-primary underline-offset-2 hover:underline">
+          Don't know? Estimate from your panels
         </button>
       )}
     </div>
