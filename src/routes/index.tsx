@@ -21,6 +21,7 @@ import { useEnerwise } from "@/store/enerwise";
 import { formatEuro, SWITCH_THRESHOLD } from "@/lib/calc";
 import { cn } from "@/lib/utils";
 import { AiRationale } from "@/components/AiRationale";
+import { PlannedSwitchCard } from "@/components/PlannedSwitchCard";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -48,6 +49,8 @@ function RecommendationPage() {
   return (
     <div className="flex flex-col gap-8">
       <RecommendationHero />
+
+      <PlannedSwitchCard />
 
       <ContractSummary contract={contract} usage={usage} />
 
@@ -247,7 +250,7 @@ function SupplierCard({
               {offer.supplier}
             </CardTitle>
             <CardDescription className="mt-1">
-              {offer.contractLength}-month contract
+              {offer.contractLength}-month {offer.tariffType} contract
               {offer.promo > 0 && ` · €${offer.promo}/mo promo`}
             </CardDescription>
           </div>
