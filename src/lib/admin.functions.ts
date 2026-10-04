@@ -108,16 +108,19 @@ export interface AdminSwitchRow {
 
 export const listAdminControl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<{ settings: AdminControlRow[]; switches: AdminSwitchRow[] }> => {
+  .handler(async ({ context }): Promise<{ settings: AdminControlRow[]; switches: AdminSwitchRow[]; demoUserIds: string[]; customerTypes: string[] }> => {
     const { supabase, userId } = context;
     const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
     if (!isAdmin) throw new Error("Forbidden");
-    const [s, p] = await Promise.all([
+    const [s, p, dh] = await Promise.all([
       supabase.from("control_settings").select("*").order("created_at", { ascending: false }).limit(1000),
       supabase.from("planned_switches").select("*").order("created_at", { ascending: false }).limit(1000),
+      supabase.from("demo_households").select("user_id, customer_type"),
     ]);
     if (s.error || p.error) throw new Error("Could not load control data");
     return {
+      demoUserIds: (dh.data ?? []).map((d) => d.user_id),
+      customerTypes: [...new Set((dh.data ?? []).map((d) => d.customer_type))].sort(),
       settings: (s.data ?? []).map((r) => ({
         user_id: r.user_id, mode: r.mode, min_savings: Number(r.min_savings),
         allowed_types: r.allowed_types ?? [], excluded_suppliers: r.excluded_suppliers ?? [],
