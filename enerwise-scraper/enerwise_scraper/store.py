@@ -82,7 +82,9 @@ class IngestStore(Store):
     """
 
     def __init__(self, url: str | None = None, secret: str | None = None):
-        self.url = url or os.environ["ENERWISE_INGEST_URL"]
+        self.url = (url or os.environ["ENERWISE_INGEST_URL"]).rstrip("/")
+        if not self.url.endswith("/api/ingest-tariffs"):
+            self.url += "/api/ingest-tariffs"   # accept the bare app URL too
         secret = secret or os.environ["SCRAPER_INGEST_SECRET"]
         self.headers = {"Authorization": f"Bearer {secret}", "Content-Type": "application/json"}
         self._current: list[dict] | None = None
@@ -91,6 +93,9 @@ class IngestStore(Store):
         if self._current is None:  # one GET per run
             r = requests.get(self.url, headers=self.headers, timeout=30)
             r.raise_for_status()
+            if "json" not in r.headers.get("content-type", ""):
+                raise RuntimeError(f"{self.url} returned {r.headers.get('content-type')}, not JSON: "
+                                   "is ENERWISE_INGEST_URL the app's /api/ingest-tariffs endpoint?")
             self._current = r.json()
         for row in self._current:
             if row["supplier"] == supplier and row["contract_type"] == contract_type:

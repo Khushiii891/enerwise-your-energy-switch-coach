@@ -132,6 +132,20 @@ def _collect_variants(page, source: config.SupplierSource) -> str:
     return "<html><body>" + "".join(parts) + "</body></html>"
 
 
+def _save_failure(page, source: config.SupplierSource) -> None:
+    """When a page breaks, keep what it looked like (uploaded as the debug-pages artifact)."""
+    if not os.getenv("SAVE_DEBUG_HTML"):
+        return
+    try:
+        os.makedirs("debug", exist_ok=True)
+        name = source.supplier.replace(" ", "_")
+        page.screenshot(path=f"debug/{name}_FAILED.png", full_page=True)
+        with open(f"debug/{name}_FAILED.html", "w") as f:
+            f.write(page.content())
+    except Exception:
+        pass
+
+
 def fetch_rendered(source: config.SupplierSource, postcode_flow: bool = False) -> str:
     try:
         from playwright.sync_api import sync_playwright
@@ -175,9 +189,10 @@ def fetch_rendered(source: config.SupplierSource, postcode_flow: bool = False) -
                     f.write(html)
                 page.screenshot(path=f"debug/{source.supplier.replace(' ', '_')}.png", full_page=True)
             return html
-        except FetchError:
-            raise
         except Exception as e:
+            _save_failure(page, source)
+            if isinstance(e, FetchError):
+                raise
             raise FetchError(f"{type(e).__name__}: {str(e)[:200]}") from e
         finally:
             browser.close()
