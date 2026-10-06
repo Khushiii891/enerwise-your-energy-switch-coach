@@ -50,7 +50,7 @@ const EXIT_CONDITIONS = [
 ] as const;
 
 function ContractPage() {
-  const { contract, setContract, reset } = useEnerwise();
+  const { contract, setContract } = useEnerwise();
   const navigate = useNavigate();
   const [form, setForm] = useState<Contract>(contract);
 
@@ -71,14 +71,10 @@ function ContractPage() {
     }
   }
 
-  async function handleReset() {
+  // Only resets the form: saving placeholder numbers would count as the user's own contract.
+  function handleReset() {
     setForm(DEFAULT_CONTRACT);
-    try {
-      await reset();
-      toast("Reset to default contract");
-    } catch {
-      toast.error("Could not reset. Please try again.");
-    }
+    toast("Form reset to example values", { description: "Nothing is saved until you press Save." });
   }
 
   return (
@@ -94,7 +90,7 @@ function ContractPage() {
           <CardHeader>
             <CardTitle className="text-lg">Current contract</CardTitle>
             <CardDescription>
-              All fields stay on your device for this prototype.
+              Saved securely to your account so your recommendation stays up to date.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-5">
@@ -120,9 +116,10 @@ function ContractPage() {
               <RadioGroup
                 value={form.tariffType}
                 onValueChange={(v) => update("tariffType", v as TariffType)}
-                className="grid grid-cols-2 gap-3"
+                className="grid grid-cols-1 gap-3 sm:grid-cols-3"
               >
                 <RadioCard value="fixed" id="tariff-fixed" label="Fixed" hint="Stable price" />
+                <RadioCard value="variable" id="tariff-variable" label="Variable" hint="Changes monthly" />
                 <RadioCard value="dynamic" id="tariff-dynamic" label="Dynamic" hint="Hourly price" />
               </RadioGroup>
             </Field>

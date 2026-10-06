@@ -43,7 +43,6 @@ interface EnerwiseContextValue {
   version: number;
   setContract: (next: Contract) => Promise<void>;
   setUsage: (next: Usage) => Promise<void>;
-  reset: () => Promise<void>;
   recommendation: Recommendation;
   control: ControlSettings;
   /** False until the user has chosen a mode at least once. */
@@ -177,11 +176,6 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
     [userId],
   );
 
-  const reset = useCallback(async () => {
-    await setContract(DEFAULT_CONTRACT);
-    await setUsage(DEFAULT_USAGE);
-  }, [setContract, setUsage]);
-
   const recommendation = useMemo(
     () => buildRecommendation(contract, usage, offers),
     [contract, usage, offers],
@@ -230,9 +224,11 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
     setVersion((v) => v + 1);
   }, [latestSwitch]);
 
+  const profileComplete = contractSaved && usageSaved;
+  // Never plan a switch from placeholder numbers: the user's own contract and usage are required.
   const autoCandidate = useMemo(
-    () => (control.mode === "auto" ? pickAutoSwitch(recommendation, control) : null),
-    [control, recommendation],
+    () => (control.mode === "auto" && profileComplete ? pickAutoSwitch(recommendation, control) : null),
+    [control, recommendation, profileComplete],
   );
 
   /** Simulation engine: complete expired switches, plan new ones when conditions are met. */
@@ -290,14 +286,13 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
       authReady,
       isAdmin,
       dataReady,
-      profileComplete: contractSaved && usageSaved,
+      profileComplete,
       contract,
       usage,
       offers,
       version,
       setContract,
       setUsage,
-      reset,
       recommendation,
       control,
       controlSaved,
@@ -307,7 +302,7 @@ export function EnerwiseProvider({ children }: { children: ReactNode }) {
       refreshSwitch,
       autoCandidate,
     }),
-    [user, authReady, isAdmin, dataReady, contractSaved, usageSaved, contract, usage, offers, version, setContract, setUsage, reset, recommendation, control, controlSaved, setControl, latestSwitch, cancelSwitch, refreshSwitch, autoCandidate],
+    [user, authReady, isAdmin, dataReady, profileComplete, contract, usage, offers, version, setContract, setUsage, recommendation, control, controlSaved, setControl, latestSwitch, cancelSwitch, refreshSwitch, autoCandidate],
   );
 
   return <EnerwiseContext.Provider value={value}>{children}</EnerwiseContext.Provider>;

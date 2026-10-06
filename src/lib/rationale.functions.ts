@@ -7,7 +7,7 @@ import { contractFromRow, controlFromRow, loadOffers, usageFromRow } from "./db-
 import { DEFAULT_CONTROL } from "./market-data";
 import type { Contract, ControlSettings, MarketOffer, Recommendation, Usage } from "./types";
 
-export const PROMPT_VERSION = "v5";
+export const PROMPT_VERSION = "v6";
 export const MODEL = "anthropic/claude-haiku-4-5";
 
 const SYSTEM_PROMPT = `You are Enerwise, a calm, neutral advisor for Dutch households deciding
@@ -35,8 +35,10 @@ You receive pre-calculated data. Rules:
 - Dates: write them exactly as given in contract_end_date_display; never
   reformat them.
 - If contract_status is "ended", the contract has already ended: say it
-  ended on contract_end_date_display and that there is no exit fee. Never
-  describe an ended contract as still running.
+  ended on contract_end_date_display. Never describe an ended contract as
+  still running. Only say there is no exit fee if exit_fee_applies_now is false.
+- If a candidate has fixed_fee_unknown: true, its fixed fee was not published
+  and is assumed equal to the user's own; say so if you mention fixed fees.
 - Each candidate has gross_savings_eur (before exit fee), exit_fee_counted_eur
   and net_savings_eur. If net savings are negative, use more_expensive_by_eur
   for "€X more expensive" — never subtract or negate numbers yourself.
@@ -186,7 +188,11 @@ export function buildPayload(contract: Contract, usage: Usage, control: ControlS
         price_per_m3_gas_eur: r.offer.gasPrice,
         feed_in_cost_per_kwh_eur: r.offer.feedInCost,
         feed_in_compensation_per_kwh_eur: r.offer.feedInCompensation,
-        ...(r.fixedFeesCounted ? { fixed_fee_per_month_eur: r2(r.offer.fixedFeeMonth ?? 0) } : {}),
+        ...(r.fixedFeesCounted
+          ? r.offer.fixedFeeMonth != null
+            ? { fixed_fee_per_month_eur: r2(r.offer.fixedFeeMonth) }
+            : { fixed_fee_unknown: true }
+          : {}),
         annual_cost_eur: r2(r.annualCostCandidate),
         gross_savings_eur: r2(r.annualCostCurrent - r.annualCostCandidate),
         exit_fee_counted_eur: rec.exitFeeApplies ? r2(contract.exitFee) : 0,

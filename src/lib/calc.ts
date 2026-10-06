@@ -69,15 +69,28 @@ export function hasContractEnded(endDate: string, now: Date = new Date()): boole
   return !isWithinContract(endDate, now) && endDate.slice(0, 10) < now.toISOString().slice(0, 10);
 }
 
-/** True when an exit fee would be charged (today is before the contract end date). */
+/** True when today is before the contract end date (calendar days). */
 export function isWithinContract(endDate: string, now: Date = new Date()): boolean {
   if (!endDate) return false;
-  const end = new Date(endDate);
-  if (Number.isNaN(end.getTime())) return false;
+  // Read yyyy-mm-dd as a local calendar date: new Date("yyyy-mm-dd") is UTC midnight,
+  // which lands on the previous day in timezones west of UTC.
+  const [y, m, d] = endDate.slice(0, 10).split("-").map(Number);
+  const endDateOnly = new Date(y ?? NaN, (m ?? NaN) - 1, d ?? NaN);
+  if (Number.isNaN(endDateOnly.getTime())) return false;
   // Compare calendar days: zero out the time so a same-day end is not penalised.
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endDateOnly = new Date(end.getFullYear(), end.getMonth(), end.getDate());
   return today < endDateOnly;
+}
+
+/**
+ * True when switching today would cost the exit fee, honouring the contract's
+ * exit fee condition ("always applies" / "never applies" / before end date).
+ */
+export function exitFeeAppliesNow(contract: Contract, now: Date = new Date()): boolean {
+  if (contract.exitFee <= 0) return false;
+  if (contract.exitFeeCondition === "never applies") return false;
+  if (contract.exitFeeCondition === "always applies") return true;
+  return isWithinContract(contract.contractEndDate, now);
 }
 
 /**
@@ -90,7 +103,8 @@ export function isWithinContract(endDate: string, now: Date = new Date()): boole
  *
  * Fixed monthly fees ×12 are added to both sides only when the user entered
  * their own fixed fee; otherwise they're left out everywhere so the
- * comparison stays like-for-like. Offers with no known fee count as €0.
+ * comparison stays like-for-like. An offer with no known fee is assumed to
+ * charge the same as the user's contract (never €0, which would invent savings).
  */
 export function buildRecommendation(
   contract: Contract,
@@ -109,7 +123,7 @@ export function buildRecommendation(
       contract.feedInCompensation,
     ) + (fixedFeesCounted ? (contract.fixedFeeMonth ?? 0) * 12 : 0);
 
-  const exitFeeApplies = isWithinContract(contract.contractEndDate, now);
+  const exitFeeApplies = exitFeeAppliesNow(contract, now);
 
   // Solar households: an offer without published 2027 feed-in rates can't be
   // compared (NULL is never treated as 0), so it is set aside, not costed.
@@ -126,7 +140,7 @@ export function buildRecommendation(
           offer.promo,
           offer.feedInCost,
           offer.feedInCompensation,
-        ) + (fixedFeesCounted ? (offer.fixedFeeMonth ?? 0) * 12 : 0);
+        ) + (fixedFeesCounted ? (offer.fixedFeeMonth ?? contract.fixedFeeMonth ?? 0) * 12 : 0);
       const grossSavings = currentAnnual - candidateAnnual;
       const exitFee = exitFeeApplies ? contract.exitFee : 0;
       const netSavings = grossSavings - exitFee;
@@ -198,7 +212,7 @@ function explain(
     )} switch threshold. Waiting could let the gap widen.`;
   }
 
-  if (ended && endDate) {
+  if (ended && endDate && !exitFeeApplies) {
     return `Your contract ended on ${endDate}, so there is no exit fee — but no candidate beats your current prices right now. We'll keep watching the market for you.`;
   }
   return `Your current contract still looks like the better deal — no candidate beats it right now. We'll keep watching the market for you.`;

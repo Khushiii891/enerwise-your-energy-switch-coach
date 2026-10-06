@@ -180,7 +180,7 @@ function SiteFooter() {
           Enerwise is a recommendation tool only. It never switches suppliers on
           your behalf — all switching decisions and actions are yours to make
           and execute yourself. Tariffs come from suppliers' published prices,
-          checked weekly; sample data is shown until live prices are available.
+          checked weekly; no offers are shown until live prices are available.
         </p>
       </div>
     </footer>

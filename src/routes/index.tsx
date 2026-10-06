@@ -249,7 +249,7 @@ function ContractSummary({
     { label: "Supplier", value: contract.supplier },
     {
       label: "Tariff",
-      value: contract.tariffType === "fixed" ? "Fixed" : "Dynamic",
+      value: { fixed: "Fixed", variable: "Variable", dynamic: "Dynamic" }[contract.tariffType],
     },
     { label: "Electricity", value: `€ ${contract.pricePerKwh.toFixed(3)}/kWh` },
     { label: "Gas", value: `€ ${contract.pricePerGas.toFixed(2)}/m³` },
@@ -449,15 +449,13 @@ function SupplierCard({
         </div>
 
         <div className="mt-auto flex flex-col gap-2 pt-2">
-          <Button asChild variant={highlight ? "default" : "outline"} size="sm">
-            <a
-              href={offer.sourceUrl ?? "https://example.com"}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              See offer <ArrowUpRight className="h-4 w-4" />
-            </a>
-          </Button>
+          {offer.sourceUrl && (
+            <Button asChild variant={highlight ? "default" : "outline"} size="sm">
+              <a href={offer.sourceUrl} target="_blank" rel="noopener noreferrer">
+                See offer <ArrowUpRight className="h-4 w-4" />
+              </a>
+            </Button>
+          )}
           <p className="text-[11px] leading-relaxed text-muted-foreground">
             {whySentence(positive, exitFeeApplied, offer.supplier)}
           </p>
@@ -488,11 +486,13 @@ function UnratedCard({ offer }: { offer: MarketOffer }) {
           Left out of your comparison: with solar panels, your costs depend on feed-in rates this
           supplier hasn't published for 2027 yet.
         </p>
-        <Button asChild variant="outline" size="sm" className="mt-auto">
-          <a href={offer.sourceUrl ?? "https://example.com"} target="_blank" rel="noopener noreferrer">
-            See offer <ArrowUpRight className="h-4 w-4" />
-          </a>
-        </Button>
+        {offer.sourceUrl && (
+          <Button asChild variant="outline" size="sm" className="mt-auto">
+            <a href={offer.sourceUrl} target="_blank" rel="noopener noreferrer">
+              See offer <ArrowUpRight className="h-4 w-4" />
+            </a>
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
@@ -547,7 +547,7 @@ function TimelineNote() {
             decision is yours to make and carry out yourself.{" "}
             {live
               ? "Tariffs come from suppliers' published model-contract prices, checked weekly (incl. energy tax and VAT, excl. network costs)."
-              : "Live tariffs aren't available yet, so the offers shown are sample data."}
+              : "Live tariffs aren't available yet, so there are no offers to compare. They're refreshed every week."}
           </p>
         </div>
       </div>
