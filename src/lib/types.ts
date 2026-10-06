@@ -4,6 +4,7 @@ export const SUPPLIERS = [
   "Eneco",
   "Budget Energie",
   "Greenchoice",
+  "Oxxio",
 ] as const;
 
 export type SupplierName = (typeof SUPPLIERS)[number];
