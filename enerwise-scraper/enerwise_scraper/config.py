@@ -80,7 +80,7 @@ class SupplierSource:
     # Postcode-flow hints (regexes matched against labels/placeholders/buttons)
     postcode_field: str = r"postcode"
     house_number_field: str = r"huisnummer"
-    addition_field: str = r"toev"   # house number addition ("141M" -> "M")
+    addition_field: str = r"toev"   # house number addition ("12B" -> "B")
     submit_button: str = r"bekijk|bereken|toon|tarieven|aanbod|volgende"
     notes: str = ""
     extra: dict = field(default_factory=dict)

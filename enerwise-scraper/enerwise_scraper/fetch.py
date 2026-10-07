@@ -132,16 +132,29 @@ def _collect_variants(page, source: config.SupplierSource) -> str:
     return "<html><body>" + "".join(parts) + "</body></html>"
 
 
-def _save_failure(page, source: config.SupplierSource) -> None:
-    """When a page breaks, keep what it looked like (uploaded as the debug-pages artifact)."""
+def _redact(text: str, address: tuple[str, ...]) -> str:
+    """Blank out the reference address so it never ends up in the debug-pages artifact."""
+    for part in address:
+        if part and len(part) >= 4:  # postcode; house numbers alone are too short to match safely
+            text = re.sub(r"\s?".join(map(re.escape, part.replace(" ", ""))), "[address]", text, flags=re.I)
+    return text
+
+
+def _save_failure(page, source: config.SupplierSource, address: tuple[str, ...] = ()) -> None:
+    """When a page breaks, keep what it looked like (uploaded as the debug-pages artifact).
+
+    Pages that went through the address form get no screenshot: it would show the
+    reference address, which must stay private.
+    """
     if not os.getenv("SAVE_DEBUG_HTML"):
         return
     try:
         os.makedirs("debug", exist_ok=True)
         name = source.supplier.replace(" ", "_")
-        page.screenshot(path=f"debug/{name}_FAILED.png", full_page=True)
+        if not address:
+            page.screenshot(path=f"debug/{name}_FAILED.png", full_page=True)
         with open(f"debug/{name}_FAILED.html", "w") as f:
-            f.write(page.content())
+            f.write(_redact(page.content(), address))
     except Exception:
         pass
 
@@ -155,10 +168,11 @@ def fetch_rendered(source: config.SupplierSource, postcode_flow: bool = False) -
     postcode = os.getenv("REFERENCE_POSTCODE") or config.REFERENCE_POSTCODE
     house_no = os.getenv("REFERENCE_HOUSE_NUMBER") or config.REFERENCE_HOUSE_NUMBER
     addition = os.getenv("REFERENCE_HOUSE_NUMBER_ADDITION", "")
-    # also accept "141M" / "141-M" in REFERENCE_HOUSE_NUMBER
+    # also accept "12B" / "12-B" in REFERENCE_HOUSE_NUMBER
     m = re.fullmatch(r"\s*(\d+)\s*-?\s*([A-Za-z0-9]*)\s*", house_no)
     if m and m.group(2):
         house_no, addition = m.group(1), addition or m.group(2)
+    address = (postcode, house_no, addition) if postcode_flow else ()
     launch_kwargs = {"headless": True}
     if os.getenv("CHROMIUM_PATH"):
         launch_kwargs["executable_path"] = os.environ["CHROMIUM_PATH"]
@@ -186,11 +200,12 @@ def fetch_rendered(source: config.SupplierSource, postcode_flow: bool = False) -
             if os.getenv("SAVE_DEBUG_HTML"):
                 os.makedirs("debug", exist_ok=True)
                 with open(f"debug/{source.supplier.replace(' ', '_')}.html", "w") as f:
-                    f.write(html)
-                page.screenshot(path=f"debug/{source.supplier.replace(' ', '_')}.png", full_page=True)
+                    f.write(_redact(html, address))
+                if not postcode_flow:  # a screenshot would show the reference address
+                    page.screenshot(path=f"debug/{source.supplier.replace(' ', '_')}.png", full_page=True)
             return html
         except Exception as e:
-            _save_failure(page, source)
+            _save_failure(page, source, address)
             if isinstance(e, FetchError):
                 raise
             raise FetchError(f"{type(e).__name__}: {str(e)[:200]}") from e
